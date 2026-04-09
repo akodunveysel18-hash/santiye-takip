@@ -32,6 +32,20 @@ export default function Home() {
   const [progressTotal, setProgressTotal] = useState("");
   const [progressDone, setProgressDone] = useState("");
 
+  // Kritik stok eşikleri
+  const stockThresholds = {
+    "Ø8": 5,
+    "Ø10": 5,
+    "Ø12": 8,
+    "Ø14": 8,
+    "Ø16": 10,
+    "Ø18": 10,
+    "Ø20": 12,
+    "Ø22": 12,
+    "Ø25": 15,
+    "Nervürlü Demir": 20,
+  };
+
   async function loadRole(userEmail) {
     const { data } = await supabase
       .from("users")
@@ -281,6 +295,34 @@ export default function Home() {
     };
   }, [filteredLogs]);
 
+  // Malzeme bazlı mevcut stok toplamı
+  const stockSummary = useMemo(() => {
+    const grouped = {};
+
+    filteredSteel.forEach((item) => {
+      const name = item.name || "Adsız";
+      const qty = Number(item.quantity || 0);
+
+      if (!grouped[name]) grouped[name] = 0;
+
+      if (item.type === "çıkış") {
+        grouped[name] -= qty;
+      } else {
+        grouped[name] += qty;
+      }
+    });
+
+    return Object.entries(grouped).map(([name, quantity]) => ({
+      name,
+      quantity,
+      threshold: stockThresholds[name] ?? 10,
+    }));
+  }, [filteredSteel]);
+
+  const criticalStocks = useMemo(() => {
+    return stockSummary.filter((item) => item.quantity <= item.threshold);
+  }, [stockSummary]);
+
   function exportExcel() {
     const data = [
       ...filteredProductions.map((item) => ({
@@ -322,6 +364,14 @@ export default function Home() {
         Miktar: "",
         Ek: "",
         Tarih: item.created_at || "",
+      })),
+      ...stockSummary.map((item) => ({
+        Tür: "Stok Özeti",
+        Ayak: selectedPier,
+        Ad: item.name,
+        Miktar: item.quantity,
+        Ek: `Kritik Seviye: ${item.threshold}`,
+        Tarih: "",
       })),
     ];
 
@@ -373,6 +423,18 @@ export default function Home() {
       padding: 16,
       marginBottom: 16,
       boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    },
+    warningCard: {
+      background: "#fff4e5",
+      border: "1px solid #f59e0b",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    },
+    dangerText: {
+      color: "#b45309",
+      fontWeight: 700,
     },
     statsGrid: {
       display: "grid",
@@ -507,6 +569,17 @@ export default function Home() {
         </button>
       </div>
 
+      {criticalStocks.length > 0 && (
+        <div style={styles.warningCard}>
+          <h2 style={{ marginTop: 0 }}>⚠ Kritik Stok Uyarısı - {selectedPier}</h2>
+          {criticalStocks.map((item) => (
+            <div key={item.name} style={styles.listItem}>
+              <span style={styles.dangerText}>{item.name}</span> — Mevcut: {item.quantity} / Kritik Seviye: {item.threshold}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={styles.statsGrid}>
         <div style={styles.statBox}>
           <strong>Toplam İmalat</strong>
@@ -532,6 +605,11 @@ export default function Home() {
           <strong>En Çok İmalat Yapılan Ayak</strong>
           <div style={{ fontSize: 26, marginTop: 8 }}>{maxPierData.pier}</div>
           <div style={{ marginTop: 4 }}>{maxPierData.total}</div>
+        </div>
+
+        <div style={styles.statBox}>
+          <strong>Kritik Malzeme Sayısı</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>{criticalStocks.length}</div>
         </div>
       </div>
 
@@ -632,6 +710,22 @@ export default function Home() {
                 <div key={item.id} style={styles.listItem}>
                   <strong>{item.created_at}</strong>
                   <div style={{ marginTop: 6 }}>{item.description}</div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Stok Özeti - {selectedPier}</h2>
+            {stockSummary.length === 0 ? (
+              <p>Stok kaydı yok</p>
+            ) : (
+              stockSummary.map((item) => (
+                <div key={item.name} style={styles.listItem}>
+                  <strong>{item.name}</strong> — Mevcut: {item.quantity}
+                  {item.quantity <= item.threshold && (
+                    <span style={{ color: "#b45309", fontWeight: 700 }}> (Kritik)</span>
+                  )}
                 </div>
               ))
             )}
@@ -761,7 +855,7 @@ export default function Home() {
           </div>
 
           <div style={styles.card}>
-            <h2 style={styles.subtitle}>Demir Stok - {selectedPier}</h2>
+            <h2 style={styles.subtitle}>Demir Stok Hareketleri - {selectedPier}</h2>
             {filteredSteel.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
