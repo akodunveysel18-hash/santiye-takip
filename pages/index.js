@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import dynamic from "next/dynamic";
 
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 export default function Home() {
   const [mode, setMode] = useState("office");
 
@@ -143,6 +145,22 @@ export default function Home() {
         <p>Toplam İmalat: {totalProduction}</p>
         <p>Toplam Demir Stok: {totalSteel}</p>
         <p>Ortalama Hakediş: %{avgProgress}</p>
+            <Chart
+  options={{
+    chart: { id: "imalat" },
+    xaxis: {
+      categories: productions.map((p) => p.name),
+    },
+  }}
+  series={[
+    {
+      name: "İmalat",
+      data: productions.map((p) => p.quantity),
+    },
+  ]}
+  type="bar"
+  width="100%"
+/>
       </div>
 
       {mode === "chief" ? (
