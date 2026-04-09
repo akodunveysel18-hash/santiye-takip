@@ -1,21 +1,6 @@
 import dynamic from "next/dynamic";
+
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
-<Chart
-  options={{
-    chart: { id: "imalat" },
-    xaxis: {
-      categories: productions.map((p) => p.name),
-    },
-  }}
-  series={[
-    {
-      name: "İmalat",
-      data: productions.map((p) => p.quantity),
-    },
-  ]}
-  type="bar"
-  width="100%"
-/>
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 
