@@ -7,7 +7,7 @@ const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function Home() {
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState("");
+  const [userRole, setUserRole] = useState("yok");
   const [selectedPier, setSelectedPier] = useState("P1");
 
   const [email, setEmail] = useState("");
@@ -32,13 +32,14 @@ export default function Home() {
   const [progressTotal, setProgressTotal] = useState("");
   const [progressDone, setProgressDone] = useState("");
 
-  async function loadRole(userId) {
-    const { data } = await supabase
+  async function loadRole(userEmail) {
+    const { data, error } = await supabase
       .from("users")
-      .select("role")
-      .eq("id", userId)
-      .single();
+      .select("role, email")
+      .eq("email", userEmail)
+      .maybeSingle();
 
+    console.log("ROLE DATA:", data, error, userEmail);
     setUserRole(data?.role || "yok");
   }
 
@@ -74,8 +75,8 @@ export default function Home() {
       const currentSession = data.session;
       setSession(currentSession || null);
 
-      if (currentSession?.user?.id) {
-        loadRole(currentSession.user.id);
+      if (currentSession?.user?.email) {
+        loadRole(currentSession.user.email);
         loadData();
       }
     });
@@ -85,11 +86,11 @@ export default function Home() {
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession || null);
 
-      if (newSession?.user?.id) {
-        loadRole(newSession.user.id);
+      if (newSession?.user?.email) {
+        loadRole(newSession.user.email);
         loadData();
       } else {
-        setUserRole("");
+        setUserRole("yok");
       }
     });
 
@@ -112,7 +113,7 @@ export default function Home() {
   async function signOut() {
     await supabase.auth.signOut();
     setSession(null);
-    setUserRole("");
+    setUserRole("yok");
   }
 
   async function addProduction() {
@@ -246,6 +247,24 @@ export default function Home() {
       values: entries.map(([, value]) => value),
     };
   }, [filteredProductions]);
+
+  const logsByDay = useMemo(() => {
+    const grouped = {};
+
+    filteredLogs.forEach((item) => {
+      const date = item.created_at
+        ? new Date(item.created_at).toLocaleDateString("tr-TR")
+        : "Tarihsiz";
+
+      grouped[date] = (grouped[date] || 0) + 1;
+    });
+
+    const entries = Object.entries(grouped).reverse().slice(-7);
+    return {
+      categories: entries.map(([date]) => date),
+      values: entries.map(([, value]) => value),
+    };
+  }, [filteredLogs]);
 
   function exportExcel() {
     const data = [
@@ -520,6 +539,27 @@ export default function Home() {
               {
                 name: "Günlük İmalat",
                 data: productionByDay.values,
+              },
+            ]}
+            type="line"
+            width="100%"
+            height={320}
+          />
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <h3>{selectedPier} Günlük Rapor Sayısı</h3>
+          <Chart
+            options={{
+              chart: { id: "gunluk-rapor", toolbar: { show: false } },
+              xaxis: { categories: logsByDay.categories },
+              stroke: { curve: "smooth" },
+              dataLabels: { enabled: true },
+            }}
+            series={[
+              {
+                name: "Rapor Adedi",
+                data: logsByDay.values,
               },
             ]}
             type="line"
