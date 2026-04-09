@@ -6,6 +6,7 @@ const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function Home() {
   const [mode, setMode] = useState("office");
+  const [selectedPier, setSelectedPier] = useState("P1");
 
   const [productions, setProductions] = useState([]);
   const [steel, setSteel] = useState([]);
@@ -51,6 +52,7 @@ export default function Home() {
       {
         name: productionName,
         quantity: Number(productionQty),
+        pier: selectedPier,
       },
     ]);
 
@@ -67,6 +69,7 @@ export default function Home() {
         name: steelName,
         quantity: Number(steelQty),
         type: steelType,
+        pier: selectedPier,
       },
     ]);
 
@@ -82,6 +85,7 @@ export default function Home() {
     await supabase.from("daily_logs").insert([
       {
         description: logText,
+        pier: selectedPier,
       },
     ]);
 
@@ -97,6 +101,7 @@ export default function Home() {
         item: progressItem,
         total_quantity: Number(progressTotal),
         completed_quantity: Number(progressDone),
+        pier: selectedPier,
       },
     ]);
 
@@ -106,43 +111,65 @@ export default function Home() {
     loadData();
   }
 
-  const totalProduction = productions.reduce(
+  const filteredProductions = productions.filter(
+    (item) => (item.pier || "P1") === selectedPier
+  );
+
+  const filteredSteel = steel.filter(
+    (item) => (item.pier || "P1") === selectedPier
+  );
+
+  const filteredLogs = logs.filter(
+    (item) => (item.pier || "P1") === selectedPier
+  );
+
+  const filteredProgress = progress.filter(
+    (item) => (item.pier || "P1") === selectedPier
+  );
+
+  const totalProduction = filteredProductions.reduce(
     (sum, item) => sum + Number(item.quantity || 0),
     0
   );
 
-  const totalSteel = steel.reduce((sum, item) => {
+  const totalSteel = filteredSteel.reduce((sum, item) => {
     const qty = Number(item.quantity || 0);
     return item.type === "çıkış" ? sum - qty : sum + qty;
   }, 0);
 
   const avgProgress =
-    progress.length > 0
+    filteredProgress.length > 0
       ? (
-          progress.reduce((sum, item) => {
+          filteredProgress.reduce((sum, item) => {
             const total = Number(item.total_quantity || 0);
             const done = Number(item.completed_quantity || 0);
             if (!total) return sum;
             return sum + (done / total) * 100;
-          }, 0) / progress.length
+          }, 0) / filteredProgress.length
         ).toFixed(1)
       : "0";
 
   return (
-    <div style={{ padding: 20, maxWidth: 1000, margin: "0 auto", fontFamily: "Arial" }}>
+    <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto", fontFamily: "Arial" }}>
       <h1>Şantiye Takip Sistemi</h1>
 
-      <div style={{ marginBottom: 20 }}>
-        <button onClick={() => setMode("office")} style={{ marginRight: 8 }}>
-          Ofis Modu
-        </button>
-        <button onClick={() => setMode("chief")}>
-          Şantiye Şefi Modu
-        </button>
+      <div style={{ marginBottom: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button onClick={() => setMode("office")}>Ofis Modu</button>
+        <button onClick={() => setMode("chief")}>Şantiye Şefi Modu</button>
+
+        <select
+          value={selectedPier}
+          onChange={(e) => setSelectedPier(e.target.value)}
+        >
+          <option value="P1">P1</option>
+          <option value="P2">P2</option>
+          <option value="P3">P3</option>
+          <option value="P4">P4</option>
+        </select>
       </div>
 
       <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-        <h2>Genel Durum</h2>
+        <h2>Genel Durum - {selectedPier}</h2>
         <p>Toplam İmalat: {totalProduction}</p>
         <p>Toplam Demir Stok: {totalSteel}</p>
         <p>Ortalama Hakediş: %{avgProgress}</p>
@@ -152,7 +179,7 @@ export default function Home() {
             options={{
               chart: { id: "imalat-grafigi", toolbar: { show: false } },
               xaxis: {
-                categories: productions.map((p) => p.name),
+                categories: filteredProductions.map((p) => p.name),
               },
               dataLabels: {
                 enabled: true,
@@ -160,8 +187,8 @@ export default function Home() {
             }}
             series={[
               {
-                name: "İmalat",
-                data: productions.map((p) => Number(p.quantity || 0)),
+                name: `${selectedPier} İmalat`,
+                data: filteredProductions.map((p) => Number(p.quantity || 0)),
               },
             ]}
             type="bar"
@@ -174,7 +201,7 @@ export default function Home() {
       {mode === "chief" ? (
         <>
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>İmalat Girişi</h2>
+            <h2>İmalat Girişi - {selectedPier}</h2>
             <input
               placeholder="İmalat adı"
               value={productionName}
@@ -193,7 +220,7 @@ export default function Home() {
           </div>
 
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Demir Stok Girişi</h2>
+            <h2>Demir Stok Girişi - {selectedPier}</h2>
             <input
               placeholder="Malzeme adı"
               value={steelName}
@@ -220,7 +247,7 @@ export default function Home() {
           </div>
 
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Hakediş Girişi</h2>
+            <h2>Hakediş Girişi - {selectedPier}</h2>
             <input
               placeholder="İş kalemi"
               value={progressItem}
@@ -246,7 +273,7 @@ export default function Home() {
           </div>
 
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Günlük Rapor</h2>
+            <h2>Günlük Rapor - {selectedPier}</h2>
             <textarea
               rows={4}
               style={{ width: "100%" }}
@@ -262,11 +289,11 @@ export default function Home() {
       ) : (
         <>
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>İmalatlar</h2>
-            {productions.length === 0 ? (
+            <h2>İmalatlar - {selectedPier}</h2>
+            {filteredProductions.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
-              productions.map((item) => (
+              filteredProductions.map((item) => (
                 <div key={item.id}>
                   {item.name} - {item.quantity}
                 </div>
@@ -275,11 +302,11 @@ export default function Home() {
           </div>
 
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Demir Stok</h2>
-            {steel.length === 0 ? (
+            <h2>Demir Stok - {selectedPier}</h2>
+            {filteredSteel.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
-              steel.map((item) => (
+              filteredSteel.map((item) => (
                 <div key={item.id}>
                   {item.name} - {item.quantity} ({item.type})
                 </div>
@@ -288,11 +315,11 @@ export default function Home() {
           </div>
 
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Hakediş</h2>
-            {progress.length === 0 ? (
+            <h2>Hakediş - {selectedPier}</h2>
+            {filteredProgress.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
-              progress.map((item) => {
+              filteredProgress.map((item) => {
                 const total = Number(item.total_quantity || 0);
                 const done = Number(item.completed_quantity || 0);
                 const percent = total ? ((done / total) * 100).toFixed(1) : "0";
@@ -306,11 +333,11 @@ export default function Home() {
           </div>
 
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Günlük Raporlar</h2>
-            {logs.length === 0 ? (
+            <h2>Günlük Raporlar - {selectedPier}</h2>
+            {filteredLogs.length === 0 ? (
               <p>Rapor yok</p>
             ) : (
-              logs.map((item) => (
+              filteredLogs.map((item) => (
                 <div key={item.id} style={{ marginBottom: 10 }}>
                   <strong>{item.created_at}</strong>
                   <div>{item.description}</div>
