@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -390,6 +392,45 @@ export default function Home() {
     XLSX.writeFile(workbook, `santiye_${selectedPier}.xlsx`);
   }
 
+  function exportDailyReportPDF() {
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text(`Günlük Şantiye Raporu - ${selectedPier}`, 14, 15);
+
+    doc.setFontSize(10);
+    doc.text(`Oluşturma Tarihi: ${new Date().toLocaleDateString("tr-TR")}`, 14, 22);
+
+    autoTable(doc, {
+      startY: 28,
+      head: [["Tarih", "Hava", "Ekip", "Yapılan İş", "Engel / Aksama"]],
+      body: filteredLogs.map((item) => [
+        item.report_date || "",
+        item.weather || "",
+        item.team || "",
+        item.description || "",
+        item.issue || "",
+      ]),
+      styles: {
+        fontSize: 8,
+        cellPadding: 2,
+        overflow: "linebreak",
+      },
+      headStyles: {
+        fillColor: [31, 41, 55],
+      },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 58 },
+        4: { cellWidth: 58 },
+      },
+    });
+
+    doc.save(`gunluk_rapor_${selectedPier}.pdf`);
+  }
+
   const styles = {
     page: {
       padding: 16,
@@ -571,6 +612,10 @@ export default function Home() {
 
         <button style={styles.button} onClick={exportExcel}>
           Excel İndir
+        </button>
+
+        <button style={styles.button} onClick={exportDailyReportPDF}>
+          Günlük Rapor PDF
         </button>
 
         <button style={styles.button} onClick={signOut}>
