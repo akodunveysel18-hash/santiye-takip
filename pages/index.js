@@ -33,14 +33,13 @@ export default function Home() {
   const [progressDone, setProgressDone] = useState("");
 
   async function loadRole(userEmail) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("users")
       .select("role, email")
       .eq("email", userEmail)
       .maybeSingle();
 
-    console.log("ROLE DATA:", data, error, userEmail);
-    setUserRole(data?.role || "yok");
+    setUserRole(data?.role || "chief");
   }
 
   async function loadData() {
@@ -90,7 +89,7 @@ export default function Home() {
         loadRole(newSession.user.email);
         loadData();
       } else {
-        setUserRole("yok");
+        setUserRole("chief");
       }
     });
 
@@ -113,7 +112,7 @@ export default function Home() {
   async function signOut() {
     await supabase.auth.signOut();
     setSession(null);
-    setUserRole("yok");
+    setUserRole("chief");
   }
 
   async function addProduction() {
@@ -230,6 +229,22 @@ export default function Home() {
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   });
 
+  const maxPierData = useMemo(() => {
+    const piers = ["P1", "P2", "P3", "P4"].map((pier) => {
+      const total = productions
+        .filter((item) => (item.pier || "P1") === pier)
+        .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+      return { pier, total };
+    });
+
+    return piers.sort((a, b) => b.total - a.total)[0] || { pier: "-", total: 0 };
+  }, [productions]);
+
+  const recentLogs = useMemo(() => {
+    return filteredLogs.slice(0, 5);
+  }, [filteredLogs]);
+
   const productionByDay = useMemo(() => {
     const grouped = {};
 
@@ -319,7 +334,7 @@ export default function Home() {
   const styles = {
     page: {
       padding: 16,
-      maxWidth: 1200,
+      maxWidth: 1280,
       margin: "0 auto",
       fontFamily: "Arial, sans-serif",
       background: "#f7f7f7",
@@ -401,6 +416,12 @@ export default function Home() {
       marginTop: 0,
       marginBottom: 12,
       fontSize: 20,
+    },
+    dashboardGrid: {
+      display: "grid",
+      gridTemplateColumns: "2fr 1fr",
+      gap: 16,
+      alignItems: "start",
     },
     loginWrap: {
       minHeight: "100vh",
@@ -486,86 +507,143 @@ export default function Home() {
         </button>
       </div>
 
-      <div style={styles.card}>
-        <h2 style={styles.subtitle}>Genel Durum - {selectedPier}</h2>
+      <div style={styles.statsGrid}>
+        <div style={styles.statBox}>
+          <strong>Toplam İmalat</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>{totalProduction}</div>
+        </div>
 
-        <div style={styles.statsGrid}>
-          <div style={styles.statBox}>
-            <strong>Toplam İmalat</strong>
-            <div style={{ fontSize: 24, marginTop: 8 }}>{totalProduction}</div>
+        <div style={styles.statBox}>
+          <strong>Toplam Demir Stok</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>{totalSteel}</div>
+        </div>
+
+        <div style={styles.statBox}>
+          <strong>Ortalama Hakediş</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>%{avgProgress}</div>
+        </div>
+
+        <div style={styles.statBox}>
+          <strong>Seçili Ayakta Günlük Rapor</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>{filteredLogs.length}</div>
+        </div>
+
+        <div style={styles.statBox}>
+          <strong>En Çok İmalat Yapılan Ayak</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>{maxPierData.pier}</div>
+          <div style={{ marginTop: 4 }}>{maxPierData.total}</div>
+        </div>
+      </div>
+
+      <div style={styles.dashboardGrid}>
+        <div>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Tüm Ayaklar Karşılaştırma</h2>
+            <Chart
+              options={{
+                chart: { id: "tum-ayaklar", toolbar: { show: false } },
+                xaxis: { categories: ["P1", "P2", "P3", "P4"] },
+                dataLabels: { enabled: true },
+              }}
+              series={[
+                {
+                  name: "Toplam İmalat",
+                  data: pierTotals,
+                },
+              ]}
+              type="bar"
+              width="100%"
+              height={320}
+            />
           </div>
 
-          <div style={styles.statBox}>
-            <strong>Toplam Demir Stok</strong>
-            <div style={{ fontSize: 24, marginTop: 8 }}>{totalSteel}</div>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>{selectedPier} Detay Grafiği</h2>
+            <Chart
+              options={{
+                chart: { id: "imalat-grafigi", toolbar: { show: false } },
+                xaxis: {
+                  categories: filteredProductions.map((p) => p.name),
+                },
+                dataLabels: { enabled: true },
+              }}
+              series={[
+                {
+                  name: `${selectedPier} İmalat`,
+                  data: filteredProductions.map((p) => Number(p.quantity || 0)),
+                },
+              ]}
+              type="bar"
+              width="100%"
+              height={320}
+            />
           </div>
 
-          <div style={styles.statBox}>
-            <strong>Ortalama Hakediş</strong>
-            <div style={{ fontSize: 24, marginTop: 8 }}>%{avgProgress}</div>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>{selectedPier} Günlük İmalat</h2>
+            <Chart
+              options={{
+                chart: { id: "gunluk-imalat", toolbar: { show: false } },
+                xaxis: { categories: productionByDay.categories },
+                stroke: { curve: "smooth" },
+                dataLabels: { enabled: true },
+              }}
+              series={[
+                {
+                  name: "Günlük İmalat",
+                  data: productionByDay.values,
+                },
+              ]}
+              type="line"
+              width="100%"
+              height={320}
+            />
+          </div>
+
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>{selectedPier} Günlük Rapor Sayısı</h2>
+            <Chart
+              options={{
+                chart: { id: "gunluk-rapor", toolbar: { show: false } },
+                xaxis: { categories: logsByDay.categories },
+                stroke: { curve: "smooth" },
+                dataLabels: { enabled: true },
+              }}
+              series={[
+                {
+                  name: "Rapor Adedi",
+                  data: logsByDay.values,
+                },
+              ]}
+              type="line"
+              width="100%"
+              height={320}
+            />
           </div>
         </div>
 
-        <div style={{ marginTop: 20, marginBottom: 30 }}>
-          <h3>Tüm Ayaklar Karşılaştırma</h3>
-          <Chart
-            options={{
-              chart: { id: "tum-ayaklar", toolbar: { show: false } },
-              xaxis: { categories: ["P1", "P2", "P3", "P4"] },
-              dataLabels: { enabled: true },
-            }}
-            series={[
-              {
-                name: "Toplam İmalat",
-                data: pierTotals,
-              },
-            ]}
-            type="bar"
-            width="100%"
-            height={320}
-          />
-        </div>
+        <div>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Son 5 Günlük Rapor - {selectedPier}</h2>
+            {recentLogs.length === 0 ? (
+              <p>Rapor yok</p>
+            ) : (
+              recentLogs.map((item) => (
+                <div key={item.id} style={styles.listItem}>
+                  <strong>{item.created_at}</strong>
+                  <div style={{ marginTop: 6 }}>{item.description}</div>
+                </div>
+              ))
+            )}
+          </div>
 
-        <div style={{ marginTop: 20, marginBottom: 30 }}>
-          <h3>{selectedPier} Günlük İmalat</h3>
-          <Chart
-            options={{
-              chart: { id: "gunluk-imalat", toolbar: { show: false } },
-              xaxis: { categories: productionByDay.categories },
-              stroke: { curve: "smooth" },
-              dataLabels: { enabled: true },
-            }}
-            series={[
-              {
-                name: "Günlük İmalat",
-                data: productionByDay.values,
-              },
-            ]}
-            type="line"
-            width="100%"
-            height={320}
-          />
-        </div>
-
-        <div style={{ marginTop: 20 }}>
-          <h3>{selectedPier} Günlük Rapor Sayısı</h3>
-          <Chart
-            options={{
-              chart: { id: "gunluk-rapor", toolbar: { show: false } },
-              xaxis: { categories: logsByDay.categories },
-              stroke: { curve: "smooth" },
-              dataLabels: { enabled: true },
-            }}
-            series={[
-              {
-                name: "Rapor Adedi",
-                data: logsByDay.values,
-              },
-            ]}
-            type="line"
-            width="100%"
-            height={320}
-          />
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Hızlı Özet - {selectedPier}</h2>
+            <div style={styles.listItem}>İmalat Kaydı: {filteredProductions.length}</div>
+            <div style={styles.listItem}>Demir Hareketi: {filteredSteel.length}</div>
+            <div style={styles.listItem}>Hakediş Kalemi: {filteredProgress.length}</div>
+            <div style={styles.listItem}>Günlük Rapor: {filteredLogs.length}</div>
+          </div>
         </div>
       </div>
 
@@ -710,20 +788,6 @@ export default function Home() {
                   </div>
                 );
               })
-            )}
-          </div>
-
-          <div style={styles.card}>
-            <h2 style={styles.subtitle}>Günlük Raporlar - {selectedPier}</h2>
-            {filteredLogs.length === 0 ? (
-              <p>Rapor yok</p>
-            ) : (
-              filteredLogs.map((item) => (
-                <div key={item.id} style={styles.listItem}>
-                  <strong>{item.created_at}</strong>
-                  <div style={{ marginTop: 6 }}>{item.description}</div>
-                </div>
-              ))
             )}
           </div>
         </>
