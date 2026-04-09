@@ -6,8 +6,13 @@ import * as XLSX from "xlsx";
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function Home() {
-  const [mode, setMode] = useState("office");
+  const [session, setSession] = useState(null);
+  const [userRole, setUserRole] = useState("");
   const [selectedPier, setSelectedPier] = useState("P1");
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   const [productions, setProductions] = useState([]);
   const [steel, setSteel] = useState([]);
@@ -26,6 +31,16 @@ export default function Home() {
   const [progressItem, setProgressItem] = useState("");
   const [progressTotal, setProgressTotal] = useState("");
   const [progressDone, setProgressDone] = useState("");
+
+  async function loadRole(userId) {
+    const { data } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    setUserRole(data?.role || "chief");
+  }
 
   async function loadData() {
     const { data: p1 } = await supabase
@@ -55,8 +70,50 @@ export default function Home() {
   }
 
   useEffect(() => {
-    loadData();
+    supabase.auth.getSession().then(({ data }) => {
+      const currentSession = data.session;
+      setSession(currentSession || null);
+
+      if (currentSession?.user?.id) {
+        loadRole(currentSession.user.id);
+        loadData();
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession || null);
+
+      if (newSession?.user?.id) {
+        loadRole(newSession.user.id);
+        loadData();
+      } else {
+        setUserRole("");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  async function signIn() {
+    setLoginError("");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setLoginError(error.message || "Giriş yapılamadı");
+    }
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    setSession(null);
+    setUserRole("");
+  }
 
   async function addProduction() {
     if (!productionName || !productionQty) return;
@@ -189,24 +246,6 @@ export default function Home() {
       values: entries.map(([, value]) => value),
     };
   }, [filteredProductions]);
-
-  const logsByDay = useMemo(() => {
-    const grouped = {};
-
-    filteredLogs.forEach((item) => {
-      const date = item.created_at
-        ? new Date(item.created_at).toLocaleDateString("tr-TR")
-        : "Tarihsiz";
-
-      grouped[date] = (grouped[date] || 0) + 1;
-    });
-
-    const entries = Object.entries(grouped).reverse().slice(-7);
-    return {
-      categories: entries.map(([date]) => date),
-      values: entries.map(([, value]) => value),
-    };
-  }, [filteredLogs]);
 
   function exportExcel() {
     const data = [
@@ -344,19 +383,69 @@ export default function Home() {
       marginBottom: 12,
       fontSize: 20,
     },
+    loginWrap: {
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      background: "#f3f4f6",
+      padding: 20,
+    },
+    loginCard: {
+      width: "100%",
+      maxWidth: 420,
+      background: "white",
+      borderRadius: 14,
+      padding: 24,
+      boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+    },
   };
+
+  if (!session) {
+    return (
+      <div style={styles.loginWrap}>
+        <div style={styles.loginCard}>
+          <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 16 }}>
+            Şantiye Giriş
+          </div>
+
+          <input
+            style={{ ...styles.input, marginBottom: 12 }}
+            placeholder="E-posta"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <input
+            style={{ ...styles.input, marginBottom: 12 }}
+            placeholder="Şifre"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <button style={{ ...styles.button, width: "100%" }} onClick={signIn}>
+            Giriş Yap
+          </button>
+
+          {loginError ? (
+            <div style={{ color: "red", marginTop: 12 }}>{loginError}</div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  const mode = userRole === "office" ? "office" : "chief";
 
   return (
     <div style={styles.page}>
       <div style={styles.title}>🏗️ Şantiye Takip Sistemi</div>
 
       <div style={styles.topBar}>
-        <button style={styles.button} onClick={() => setMode("office")}>
-          Ofis Modu
-        </button>
-        <button style={styles.button} onClick={() => setMode("chief")}>
-          Şantiye Şefi Modu
-        </button>
+        <div style={{ ...styles.card, padding: 10, marginBottom: 0 }}>
+          Giriş: <strong>{session.user.email}</strong> | Yetki: <strong>{userRole}</strong>
+        </div>
 
         <select
           style={styles.select}
@@ -371,6 +460,10 @@ export default function Home() {
 
         <button style={styles.button} onClick={exportExcel}>
           Excel İndir
+        </button>
+
+        <button style={styles.button} onClick={signOut}>
+          Çıkış Yap
         </button>
       </div>
 
@@ -415,70 +508,18 @@ export default function Home() {
         </div>
 
         <div style={{ marginTop: 20, marginBottom: 30 }}>
-          <h3>{selectedPier} Detay Grafiği</h3>
-          <Chart
-            options={{
-              chart: { id: "imalat-grafigi", toolbar: { show: false } },
-              xaxis: {
-                categories: filteredProductions.map((p) => p.name),
-              },
-              dataLabels: { enabled: true },
-            }}
-            series={[
-              {
-                name: `${selectedPier} İmalat`,
-                data: filteredProductions.map((p) => Number(p.quantity || 0)),
-              },
-            ]}
-            type="bar"
-            width="100%"
-            height={320}
-          />
-        </div>
-
-        <div style={{ marginTop: 20, marginBottom: 30 }}>
-          <h3>{selectedPier} Günlük İmalat İlerlemesi</h3>
+          <h3>{selectedPier} Günlük İmalat</h3>
           <Chart
             options={{
               chart: { id: "gunluk-imalat", toolbar: { show: false } },
-              xaxis: {
-                categories: productionByDay.categories,
-              },
-              stroke: {
-                curve: "smooth",
-              },
-              dataLabels: {
-                enabled: true,
-              },
+              xaxis: { categories: productionByDay.categories },
+              stroke: { curve: "smooth" },
+              dataLabels: { enabled: true },
             }}
             series={[
               {
                 name: "Günlük İmalat",
                 data: productionByDay.values,
-              },
-            ]}
-            type="line"
-            width="100%"
-            height={320}
-          />
-        </div>
-
-        <div style={{ marginTop: 20 }}>
-          <h3>{selectedPier} Günlük Rapor Sayısı</h3>
-          <Chart
-            options={{
-              chart: { id: "gunluk-rapor", toolbar: { show: false } },
-              xaxis: {
-                categories: logsByDay.categories,
-              },
-              dataLabels: {
-                enabled: true,
-              },
-            }}
-            series={[
-              {
-                name: "Rapor Adedi",
-                data: logsByDay.values,
               },
             ]}
             type="line"
