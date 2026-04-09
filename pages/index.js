@@ -149,6 +149,14 @@ export default function Home() {
         ).toFixed(1)
       : "0";
 
+  const pierTotals = ["P1", "P2", "P3", "P4"].map((pier) => {
+    const total = productions
+      .filter((item) => (item.pier || "P1") === pier)
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+    return total;
+  });
+
   return (
     <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto", fontFamily: "Arial" }}>
       <h1>Şantiye Takip Sistemi</h1>
@@ -174,7 +182,32 @@ export default function Home() {
         <p>Toplam Demir Stok: {totalSteel}</p>
         <p>Ortalama Hakediş: %{avgProgress}</p>
 
+        <div style={{ marginTop: 20, marginBottom: 30 }}>
+          <h3>Tüm Ayaklar Karşılaştırma</h3>
+          <Chart
+            options={{
+              chart: { id: "tum-ayaklar", toolbar: { show: false } },
+              xaxis: {
+                categories: ["P1", "P2", "P3", "P4"],
+              },
+              dataLabels: {
+                enabled: true,
+              },
+            }}
+            series={[
+              {
+                name: "Toplam İmalat",
+                data: pierTotals,
+              },
+            ]}
+            type="bar"
+            width="100%"
+            height={320}
+          />
+        </div>
+
         <div style={{ marginTop: 20 }}>
+          <h3>{selectedPier} Detay Grafiği</h3>
           <Chart
             options={{
               chart: { id: "imalat-grafigi", toolbar: { show: false } },
