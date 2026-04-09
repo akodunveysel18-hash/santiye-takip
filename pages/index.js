@@ -7,7 +7,7 @@ const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function Home() {
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState("yok");
+  const [userRole, setUserRole] = useState("chief");
   const [selectedPier, setSelectedPier] = useState("P1");
 
   const [email, setEmail] = useState("");
