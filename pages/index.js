@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 
 export default function Home() {
   const [mode, setMode] = useState("office");
+
   const [productions, setProductions] = useState([]);
   const [steel, setSteel] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -132,7 +133,9 @@ export default function Home() {
         <button onClick={() => setMode("office")} style={{ marginRight: 8 }}>
           Ofis Modu
         </button>
-        <button onClick={() => setMode("chief")}>Şantiye Şefi Modu</button>
+        <button onClick={() => setMode("chief")}>
+          Şantiye Şefi Modu
+        </button>
       </div>
 
       <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
@@ -142,7 +145,7 @@ export default function Home() {
         <p>Ortalama Hakediş: %{avgProgress}</p>
       </div>
 
-      {mode === "chief" && (
+      {mode === "chief" ? (
         <>
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
             <h2>İmalat Girişi</h2>
@@ -230,9 +233,7 @@ export default function Home() {
             </button>
           </div>
         </>
-      )}
-
-      {mode === "office" && (
+      ) : (
         <>
           <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
             <h2>İmalatlar</h2>
