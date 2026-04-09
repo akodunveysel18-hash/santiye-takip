@@ -35,6 +35,7 @@ export default function Home() {
   const [team, setTeam] = useState("");
   const [logText, setLogText] = useState("");
   const [issue, setIssue] = useState("");
+  const [reportImage, setReportImage] = useState(null);
 
   const [progressItem, setProgressItem] = useState("");
   const [progressTotal, setProgressTotal] = useState("");
@@ -171,8 +172,36 @@ export default function Home() {
     loadData();
   }
 
+  async function uploadReportImage(file) {
+    if (!file) return "";
+
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const filePath = `${selectedPier}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("daily-report-images")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error(uploadError);
+      return "";
+    }
+
+    const { data } = supabase.storage
+      .from("daily-report-images")
+      .getPublicUrl(filePath);
+
+    return data?.publicUrl || "";
+  }
+
   async function addLog() {
     if (!logText) return;
+
+    let imageUrl = "";
+    if (reportImage) {
+      imageUrl = await uploadReportImage(reportImage);
+    }
 
     await supabase.from("daily_logs").insert([
       {
@@ -182,6 +211,7 @@ export default function Home() {
         team,
         description: logText,
         issue,
+        image_url: imageUrl,
       },
     ]);
 
@@ -190,6 +220,7 @@ export default function Home() {
     setTeam("");
     setLogText("");
     setIssue("");
+    setReportImage(null);
     loadData();
   }
 
@@ -373,7 +404,7 @@ export default function Home() {
         Ayak: item.pier || "P1",
         Ad: item.description || "",
         Miktar: "",
-        Ek: `Tarih: ${item.report_date || ""} | Hava: ${item.weather || ""} | Ekip: ${item.team || ""} | Engel: ${item.issue || ""}`,
+        Ek: `Tarih: ${item.report_date || ""} | Hava: ${item.weather || ""} | Ekip: ${item.team || ""} | Engel: ${item.issue || ""} | Foto: ${item.image_url || ""}`,
         Tarih: item.created_at || "",
       })),
       ...stockSummary.map((item) => ({
@@ -403,13 +434,14 @@ export default function Home() {
 
     autoTable(doc, {
       startY: 28,
-      head: [["Tarih", "Hava", "Ekip", "Yapılan İş", "Engel / Aksama"]],
+      head: [["Tarih", "Hava", "Ekip", "Yapılan İş", "Engel / Aksama", "Foto"]],
       body: filteredLogs.map((item) => [
         item.report_date || "",
         item.weather || "",
         item.team || "",
         item.description || "",
         item.issue || "",
+        item.image_url ? "Var" : "Yok",
       ]),
       styles: {
         fontSize: 8,
@@ -420,11 +452,12 @@ export default function Home() {
         fillColor: [31, 41, 55],
       },
       columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 28 },
-        3: { cellWidth: 58 },
-        4: { cellWidth: 58 },
+        0: { cellWidth: 20 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 45 },
+        4: { cellWidth: 45 },
+        5: { cellWidth: 15 },
       },
     });
 
@@ -550,6 +583,13 @@ export default function Home() {
       borderRadius: 14,
       padding: 24,
       boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+    },
+    image: {
+      width: "100%",
+      maxWidth: 260,
+      borderRadius: 8,
+      marginTop: 10,
+      border: "1px solid #ddd",
     },
   };
 
@@ -767,6 +807,9 @@ export default function Home() {
                   <div><strong>Ekip:</strong> {item.team || "-"}</div>
                   <div style={{ marginTop: 6 }}><strong>Yapılan İş:</strong> {item.description || "-"}</div>
                   <div style={{ marginTop: 6 }}><strong>Engel/Aksama:</strong> {item.issue || "-"}</div>
+                  {item.image_url && (
+                    <img src={item.image_url} alt="Rapor görseli" style={styles.image} />
+                  )}
                 </div>
               ))
             )}
@@ -919,6 +962,15 @@ export default function Home() {
                 value={issue}
                 onChange={(e) => setIssue(e.target.value)}
                 placeholder="Engel / aksama / iş durduran sebepler"
+              />
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <input
+                style={styles.input}
+                type="file"
+                accept="image/*"
+                onChange={(e) => setReportImage(e.target.files?.[0] || null)}
               />
             </div>
 
