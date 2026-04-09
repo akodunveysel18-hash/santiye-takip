@@ -28,10 +28,25 @@ export default function Home() {
   const [progressDone, setProgressDone] = useState("");
 
   async function loadData() {
-    const { data: p1 } = await supabase.from("productions").select("*").order("created_at", { ascending: false });
-    const { data: p2 } = await supabase.from("steel_stock").select("*").order("created_at", { ascending: false });
-    const { data: p3 } = await supabase.from("daily_logs").select("*").order("created_at", { ascending: false });
-    const { data: p4 } = await supabase.from("progress").select("*").order("created_at", { ascending: false });
+    const { data: p1 } = await supabase
+      .from("productions")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const { data: p2 } = await supabase
+      .from("steel_stock")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const { data: p3 } = await supabase
+      .from("daily_logs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const { data: p4 } = await supabase
+      .from("progress")
+      .select("*")
+      .order("created_at", { ascending: false });
 
     setProductions(p1 || []);
     setSteel(p2 || []);
@@ -157,6 +172,42 @@ export default function Home() {
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   });
 
+  const productionByDay = useMemo(() => {
+    const grouped = {};
+
+    filteredProductions.forEach((item) => {
+      const date = item.created_at
+        ? new Date(item.created_at).toLocaleDateString("tr-TR")
+        : "Tarihsiz";
+
+      grouped[date] = (grouped[date] || 0) + Number(item.quantity || 0);
+    });
+
+    const entries = Object.entries(grouped).reverse().slice(-7);
+    return {
+      categories: entries.map(([date]) => date),
+      values: entries.map(([, value]) => value),
+    };
+  }, [filteredProductions]);
+
+  const logsByDay = useMemo(() => {
+    const grouped = {};
+
+    filteredLogs.forEach((item) => {
+      const date = item.created_at
+        ? new Date(item.created_at).toLocaleDateString("tr-TR")
+        : "Tarihsiz";
+
+      grouped[date] = (grouped[date] || 0) + 1;
+    });
+
+    const entries = Object.entries(grouped).reverse().slice(-7);
+    return {
+      categories: entries.map(([date]) => date),
+      values: entries.map(([, value]) => value),
+    };
+  }, [filteredLogs]);
+
   function exportExcel() {
     const data = [
       ...filteredProductions.map((item) => ({
@@ -180,7 +231,15 @@ export default function Home() {
         Ayak: item.pier || "P1",
         Ad: item.item,
         Miktar: Number(item.completed_quantity || 0),
-        Ek: `%${Number(item.total_quantity || 0) ? ((Number(item.completed_quantity || 0) / Number(item.total_quantity || 0)) * 100).toFixed(1) : "0"}`,
+        Ek: `%${
+          Number(item.total_quantity || 0)
+            ? (
+                (Number(item.completed_quantity || 0) /
+                  Number(item.total_quantity || 0)) *
+                100
+              ).toFixed(1)
+            : "0"
+        }`,
         Tarih: item.created_at || "",
       })),
       ...filteredLogs.map((item) => ({
@@ -233,6 +292,7 @@ export default function Home() {
       borderRadius: 8,
       border: "1px solid #ccc",
       minWidth: 100,
+      background: "white",
     },
     card: {
       background: "white",
@@ -264,6 +324,7 @@ export default function Home() {
       borderRadius: 8,
       border: "1px solid #ccc",
       boxSizing: "border-box",
+      background: "white",
     },
     textarea: {
       width: "100%",
@@ -272,6 +333,7 @@ export default function Home() {
       border: "1px solid #ccc",
       boxSizing: "border-box",
       minHeight: 110,
+      background: "white",
     },
     listItem: {
       padding: "10px 12px",
@@ -352,7 +414,7 @@ export default function Home() {
           />
         </div>
 
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 20, marginBottom: 30 }}>
           <h3>{selectedPier} Detay Grafiği</h3>
           <Chart
             options={{
@@ -369,6 +431,57 @@ export default function Home() {
               },
             ]}
             type="bar"
+            width="100%"
+            height={320}
+          />
+        </div>
+
+        <div style={{ marginTop: 20, marginBottom: 30 }}>
+          <h3>{selectedPier} Günlük İmalat İlerlemesi</h3>
+          <Chart
+            options={{
+              chart: { id: "gunluk-imalat", toolbar: { show: false } },
+              xaxis: {
+                categories: productionByDay.categories,
+              },
+              stroke: {
+                curve: "smooth",
+              },
+              dataLabels: {
+                enabled: true,
+              },
+            }}
+            series={[
+              {
+                name: "Günlük İmalat",
+                data: productionByDay.values,
+              },
+            ]}
+            type="line"
+            width="100%"
+            height={320}
+          />
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <h3>{selectedPier} Günlük Rapor Sayısı</h3>
+          <Chart
+            options={{
+              chart: { id: "gunluk-rapor", toolbar: { show: false } },
+              xaxis: {
+                categories: logsByDay.categories,
+              },
+              dataLabels: {
+                enabled: true,
+              },
+            }}
+            series={[
+              {
+                name: "Rapor Adedi",
+                data: logsByDay.values,
+              },
+            ]}
+            type="line"
             width="100%"
             height={320}
           />
