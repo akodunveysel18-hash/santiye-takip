@@ -1,6 +1,3 @@
-import dynamic from "next/dynamic";
-
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 
