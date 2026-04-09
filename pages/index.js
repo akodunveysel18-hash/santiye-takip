@@ -127,7 +127,7 @@ export default function Home() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: "0 auto", fontFamily: "Arial" }}>
-      <h1>Şantiye Takip Sistemi</h1>
+      <h1>Şantiye Takip Sistemi - TEST 123</h1>
 
       <div style={{ marginBottom: 20 }}>
         <button onClick={() => setMode("office")} style={{ marginRight: 8 }}>
