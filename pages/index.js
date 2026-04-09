@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import dynamic from "next/dynamic";
+import * as XLSX from "xlsx";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -27,13 +28,10 @@ export default function Home() {
   const [progressDone, setProgressDone] = useState("");
 
   async function loadData() {
-    const { data: p1 } = await supabase.from("productions").select("*");
-    const { data: p2 } = await supabase.from("steel_stock").select("*");
-    const { data: p3 } = await supabase
-      .from("daily_logs")
-      .select("*")
-      .order("created_at", { ascending: false });
-    const { data: p4 } = await supabase.from("progress").select("*");
+    const { data: p1 } = await supabase.from("productions").select("*").order("created_at", { ascending: false });
+    const { data: p2 } = await supabase.from("steel_stock").select("*").order("created_at", { ascending: false });
+    const { data: p3 } = await supabase.from("daily_logs").select("*").order("created_at", { ascending: false });
+    const { data: p4 } = await supabase.from("progress").select("*").order("created_at", { ascending: false });
 
     setProductions(p1 || []);
     setSteel(p2 || []);
@@ -111,20 +109,24 @@ export default function Home() {
     loadData();
   }
 
-  const filteredProductions = productions.filter(
-    (item) => (item.pier || "P1") === selectedPier
+  const filteredProductions = useMemo(
+    () => productions.filter((item) => (item.pier || "P1") === selectedPier),
+    [productions, selectedPier]
   );
 
-  const filteredSteel = steel.filter(
-    (item) => (item.pier || "P1") === selectedPier
+  const filteredSteel = useMemo(
+    () => steel.filter((item) => (item.pier || "P1") === selectedPier),
+    [steel, selectedPier]
   );
 
-  const filteredLogs = logs.filter(
-    (item) => (item.pier || "P1") === selectedPier
+  const filteredLogs = useMemo(
+    () => logs.filter((item) => (item.pier || "P1") === selectedPier),
+    [logs, selectedPier]
   );
 
-  const filteredProgress = progress.filter(
-    (item) => (item.pier || "P1") === selectedPier
+  const filteredProgress = useMemo(
+    () => progress.filter((item) => (item.pier || "P1") === selectedPier),
+    [progress, selectedPier]
   );
 
   const totalProduction = filteredProductions.reduce(
@@ -150,22 +152,152 @@ export default function Home() {
       : "0";
 
   const pierTotals = ["P1", "P2", "P3", "P4"].map((pier) => {
-    const total = productions
+    return productions
       .filter((item) => (item.pier || "P1") === pier)
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-
-    return total;
   });
 
-  return (
-    <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto", fontFamily: "Arial" }}>
-      <h1>Şantiye Takip Sistemi</h1>
+  function exportExcel() {
+    const data = [
+      ...filteredProductions.map((item) => ({
+        Tür: "İmalat",
+        Ayak: item.pier || "P1",
+        Ad: item.name,
+        Miktar: Number(item.quantity || 0),
+        Ek: "",
+        Tarih: item.created_at || "",
+      })),
+      ...filteredSteel.map((item) => ({
+        Tür: "Demir Stok",
+        Ayak: item.pier || "P1",
+        Ad: item.name,
+        Miktar: Number(item.quantity || 0),
+        Ek: item.type || "",
+        Tarih: item.created_at || "",
+      })),
+      ...filteredProgress.map((item) => ({
+        Tür: "Hakediş",
+        Ayak: item.pier || "P1",
+        Ad: item.item,
+        Miktar: Number(item.completed_quantity || 0),
+        Ek: `%${Number(item.total_quantity || 0) ? ((Number(item.completed_quantity || 0) / Number(item.total_quantity || 0)) * 100).toFixed(1) : "0"}`,
+        Tarih: item.created_at || "",
+      })),
+      ...filteredLogs.map((item) => ({
+        Tür: "Günlük Rapor",
+        Ayak: item.pier || "P1",
+        Ad: item.description,
+        Miktar: "",
+        Ek: "",
+        Tarih: item.created_at || "",
+      })),
+    ];
 
-      <div style={{ marginBottom: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={() => setMode("office")}>Ofis Modu</button>
-        <button onClick={() => setMode("chief")}>Şantiye Şefi Modu</button>
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, selectedPier);
+    XLSX.writeFile(workbook, `santiye_${selectedPier}.xlsx`);
+  }
+
+  const styles = {
+    page: {
+      padding: 16,
+      maxWidth: 1200,
+      margin: "0 auto",
+      fontFamily: "Arial, sans-serif",
+      background: "#f7f7f7",
+      minHeight: "100vh",
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: 700,
+      marginBottom: 16,
+    },
+    topBar: {
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      marginBottom: 20,
+    },
+    button: {
+      padding: "10px 14px",
+      border: "none",
+      borderRadius: 8,
+      cursor: "pointer",
+      background: "#1f2937",
+      color: "white",
+      fontWeight: 600,
+    },
+    select: {
+      padding: "10px 12px",
+      borderRadius: 8,
+      border: "1px solid #ccc",
+      minWidth: 100,
+    },
+    card: {
+      background: "white",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    },
+    statsGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+      gap: 12,
+      marginBottom: 16,
+    },
+    statBox: {
+      background: "#eef2ff",
+      borderRadius: 10,
+      padding: 14,
+    },
+    formGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+      gap: 10,
+      alignItems: "center",
+    },
+    input: {
+      width: "100%",
+      padding: "10px 12px",
+      borderRadius: 8,
+      border: "1px solid #ccc",
+      boxSizing: "border-box",
+    },
+    textarea: {
+      width: "100%",
+      padding: "10px 12px",
+      borderRadius: 8,
+      border: "1px solid #ccc",
+      boxSizing: "border-box",
+      minHeight: 110,
+    },
+    listItem: {
+      padding: "10px 12px",
+      borderBottom: "1px solid #eee",
+    },
+    subtitle: {
+      marginTop: 0,
+      marginBottom: 12,
+      fontSize: 20,
+    },
+  };
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.title}>🏗️ Şantiye Takip Sistemi</div>
+
+      <div style={styles.topBar}>
+        <button style={styles.button} onClick={() => setMode("office")}>
+          Ofis Modu
+        </button>
+        <button style={styles.button} onClick={() => setMode("chief")}>
+          Şantiye Şefi Modu
+        </button>
 
         <select
+          style={styles.select}
           value={selectedPier}
           onChange={(e) => setSelectedPier(e.target.value)}
         >
@@ -174,25 +306,39 @@ export default function Home() {
           <option value="P3">P3</option>
           <option value="P4">P4</option>
         </select>
+
+        <button style={styles.button} onClick={exportExcel}>
+          Excel İndir
+        </button>
       </div>
 
-      <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-        <h2>Genel Durum - {selectedPier}</h2>
-        <p>Toplam İmalat: {totalProduction}</p>
-        <p>Toplam Demir Stok: {totalSteel}</p>
-        <p>Ortalama Hakediş: %{avgProgress}</p>
+      <div style={styles.card}>
+        <h2 style={styles.subtitle}>Genel Durum - {selectedPier}</h2>
+
+        <div style={styles.statsGrid}>
+          <div style={styles.statBox}>
+            <strong>Toplam İmalat</strong>
+            <div style={{ fontSize: 24, marginTop: 8 }}>{totalProduction}</div>
+          </div>
+
+          <div style={styles.statBox}>
+            <strong>Toplam Demir Stok</strong>
+            <div style={{ fontSize: 24, marginTop: 8 }}>{totalSteel}</div>
+          </div>
+
+          <div style={styles.statBox}>
+            <strong>Ortalama Hakediş</strong>
+            <div style={{ fontSize: 24, marginTop: 8 }}>%{avgProgress}</div>
+          </div>
+        </div>
 
         <div style={{ marginTop: 20, marginBottom: 30 }}>
           <h3>Tüm Ayaklar Karşılaştırma</h3>
           <Chart
             options={{
               chart: { id: "tum-ayaklar", toolbar: { show: false } },
-              xaxis: {
-                categories: ["P1", "P2", "P3", "P4"],
-              },
-              dataLabels: {
-                enabled: true,
-              },
+              xaxis: { categories: ["P1", "P2", "P3", "P4"] },
+              dataLabels: { enabled: true },
             }}
             series={[
               {
@@ -214,9 +360,7 @@ export default function Home() {
               xaxis: {
                 categories: filteredProductions.map((p) => p.name),
               },
-              dataLabels: {
-                enabled: true,
-              },
+              dataLabels: { enabled: true },
             }}
             series={[
               {
@@ -233,122 +377,132 @@ export default function Home() {
 
       {mode === "chief" ? (
         <>
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>İmalat Girişi - {selectedPier}</h2>
-            <input
-              placeholder="İmalat adı"
-              value={productionName}
-              onChange={(e) => setProductionName(e.target.value)}
-            />
-            <input
-              placeholder="Miktar"
-              type="number"
-              value={productionQty}
-              onChange={(e) => setProductionQty(e.target.value)}
-              style={{ marginLeft: 8 }}
-            />
-            <button onClick={addProduction} style={{ marginLeft: 8 }}>
-              Kaydet
-            </button>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>İmalat Girişi - {selectedPier}</h2>
+            <div style={styles.formGrid}>
+              <input
+                style={styles.input}
+                placeholder="İmalat adı"
+                value={productionName}
+                onChange={(e) => setProductionName(e.target.value)}
+              />
+              <input
+                style={styles.input}
+                placeholder="Miktar"
+                type="number"
+                value={productionQty}
+                onChange={(e) => setProductionQty(e.target.value)}
+              />
+              <button style={styles.button} onClick={addProduction}>
+                Kaydet
+              </button>
+            </div>
           </div>
 
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Demir Stok Girişi - {selectedPier}</h2>
-            <input
-              placeholder="Malzeme adı"
-              value={steelName}
-              onChange={(e) => setSteelName(e.target.value)}
-            />
-            <input
-              placeholder="Miktar"
-              type="number"
-              value={steelQty}
-              onChange={(e) => setSteelQty(e.target.value)}
-              style={{ marginLeft: 8 }}
-            />
-            <select
-              value={steelType}
-              onChange={(e) => setSteelType(e.target.value)}
-              style={{ marginLeft: 8 }}
-            >
-              <option value="giriş">giriş</option>
-              <option value="çıkış">çıkış</option>
-            </select>
-            <button onClick={addSteel} style={{ marginLeft: 8 }}>
-              Kaydet
-            </button>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Demir Stok Girişi - {selectedPier}</h2>
+            <div style={styles.formGrid}>
+              <input
+                style={styles.input}
+                placeholder="Malzeme adı"
+                value={steelName}
+                onChange={(e) => setSteelName(e.target.value)}
+              />
+              <input
+                style={styles.input}
+                placeholder="Miktar"
+                type="number"
+                value={steelQty}
+                onChange={(e) => setSteelQty(e.target.value)}
+              />
+              <select
+                style={styles.select}
+                value={steelType}
+                onChange={(e) => setSteelType(e.target.value)}
+              >
+                <option value="giriş">giriş</option>
+                <option value="çıkış">çıkış</option>
+              </select>
+              <button style={styles.button} onClick={addSteel}>
+                Kaydet
+              </button>
+            </div>
           </div>
 
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Hakediş Girişi - {selectedPier}</h2>
-            <input
-              placeholder="İş kalemi"
-              value={progressItem}
-              onChange={(e) => setProgressItem(e.target.value)}
-            />
-            <input
-              placeholder="Toplam miktar"
-              type="number"
-              value={progressTotal}
-              onChange={(e) => setProgressTotal(e.target.value)}
-              style={{ marginLeft: 8 }}
-            />
-            <input
-              placeholder="Tamamlanan miktar"
-              type="number"
-              value={progressDone}
-              onChange={(e) => setProgressDone(e.target.value)}
-              style={{ marginLeft: 8 }}
-            />
-            <button onClick={addProgress} style={{ marginLeft: 8 }}>
-              Kaydet
-            </button>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Hakediş Girişi - {selectedPier}</h2>
+            <div style={styles.formGrid}>
+              <input
+                style={styles.input}
+                placeholder="İş kalemi"
+                value={progressItem}
+                onChange={(e) => setProgressItem(e.target.value)}
+              />
+              <input
+                style={styles.input}
+                placeholder="Toplam miktar"
+                type="number"
+                value={progressTotal}
+                onChange={(e) => setProgressTotal(e.target.value)}
+              />
+              <input
+                style={styles.input}
+                placeholder="Tamamlanan miktar"
+                type="number"
+                value={progressDone}
+                onChange={(e) => setProgressDone(e.target.value)}
+              />
+              <button style={styles.button} onClick={addProgress}>
+                Kaydet
+              </button>
+            </div>
           </div>
 
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Günlük Rapor - {selectedPier}</h2>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Günlük Rapor - {selectedPier}</h2>
             <textarea
-              rows={4}
-              style={{ width: "100%" }}
+              style={styles.textarea}
               value={logText}
               onChange={(e) => setLogText(e.target.value)}
               placeholder="Bugün yapılan işleri yaz"
             />
-            <button onClick={addLog} style={{ marginTop: 10 }}>
-              Kaydet
-            </button>
+            <div style={{ marginTop: 10 }}>
+              <button style={styles.button} onClick={addLog}>
+                Kaydet
+              </button>
+            </div>
           </div>
         </>
       ) : (
         <>
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>İmalatlar - {selectedPier}</h2>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>İmalatlar - {selectedPier}</h2>
             {filteredProductions.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
               filteredProductions.map((item) => (
-                <div key={item.id}>
+                <div key={item.id} style={styles.listItem}>
                   {item.name} - {item.quantity}
                 </div>
               ))
             )}
           </div>
 
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Demir Stok - {selectedPier}</h2>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Demir Stok - {selectedPier}</h2>
             {filteredSteel.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
               filteredSteel.map((item) => (
-                <div key={item.id}>
+                <div key={item.id} style={styles.listItem}>
                   {item.name} - {item.quantity} ({item.type})
                 </div>
               ))
             )}
           </div>
 
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Hakediş - {selectedPier}</h2>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Hakediş - {selectedPier}</h2>
             {filteredProgress.length === 0 ? (
               <p>Kayıt yok</p>
             ) : (
@@ -357,7 +511,7 @@ export default function Home() {
                 const done = Number(item.completed_quantity || 0);
                 const percent = total ? ((done / total) * 100).toFixed(1) : "0";
                 return (
-                  <div key={item.id}>
+                  <div key={item.id} style={styles.listItem}>
                     {item.item} - %{percent}
                   </div>
                 );
@@ -365,15 +519,15 @@ export default function Home() {
             )}
           </div>
 
-          <div style={{ border: "1px solid #ccc", padding: 15, marginBottom: 20 }}>
-            <h2>Günlük Raporlar - {selectedPier}</h2>
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>Günlük Raporlar - {selectedPier}</h2>
             {filteredLogs.length === 0 ? (
               <p>Rapor yok</p>
             ) : (
               filteredLogs.map((item) => (
-                <div key={item.id} style={{ marginBottom: 10 }}>
+                <div key={item.id} style={styles.listItem}>
                   <strong>{item.created_at}</strong>
-                  <div>{item.description}</div>
+                  <div style={{ marginTop: 6 }}>{item.description}</div>
                 </div>
               ))
             )}
