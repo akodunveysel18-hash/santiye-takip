@@ -39,7 +39,7 @@ export default function Home() {
       .eq("id", userId)
       .single();
 
-    setUserRole(data?.role || "chief");
+    setUserRole(data?.role || "yok");
   }
 
   async function loadData() {
