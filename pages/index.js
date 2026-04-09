@@ -26,13 +26,18 @@ export default function Home() {
   const [steelQty, setSteelQty] = useState("");
   const [steelType, setSteelType] = useState("giriş");
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const [reportDate, setReportDate] = useState(todayStr);
+  const [weather, setWeather] = useState("");
+  const [team, setTeam] = useState("");
   const [logText, setLogText] = useState("");
+  const [issue, setIssue] = useState("");
 
   const [progressItem, setProgressItem] = useState("");
   const [progressTotal, setProgressTotal] = useState("");
   const [progressDone, setProgressDone] = useState("");
 
-  // Kritik stok eşikleri
   const stockThresholds = {
     "Ø8": 5,
     "Ø10": 5,
@@ -70,6 +75,7 @@ export default function Home() {
     const { data: p3 } = await supabase
       .from("daily_logs")
       .select("*")
+      .order("report_date", { ascending: false })
       .order("created_at", { ascending: false });
 
     const { data: p4 } = await supabase
@@ -168,12 +174,20 @@ export default function Home() {
 
     await supabase.from("daily_logs").insert([
       {
-        description: logText,
         pier: selectedPier,
+        report_date: reportDate,
+        weather,
+        team,
+        description: logText,
+        issue,
       },
     ]);
 
+    setReportDate(todayStr);
+    setWeather("");
+    setTeam("");
     setLogText("");
+    setIssue("");
     loadData();
   }
 
@@ -255,9 +269,7 @@ export default function Home() {
     return piers.sort((a, b) => b.total - a.total)[0] || { pier: "-", total: 0 };
   }, [productions]);
 
-  const recentLogs = useMemo(() => {
-    return filteredLogs.slice(0, 5);
-  }, [filteredLogs]);
+  const recentLogs = useMemo(() => filteredLogs.slice(0, 5), [filteredLogs]);
 
   const productionByDay = useMemo(() => {
     const grouped = {};
@@ -266,7 +278,6 @@ export default function Home() {
       const date = item.created_at
         ? new Date(item.created_at).toLocaleDateString("tr-TR")
         : "Tarihsiz";
-
       grouped[date] = (grouped[date] || 0) + Number(item.quantity || 0);
     });
 
@@ -281,7 +292,9 @@ export default function Home() {
     const grouped = {};
 
     filteredLogs.forEach((item) => {
-      const date = item.created_at
+      const date = item.report_date
+        ? new Date(item.report_date).toLocaleDateString("tr-TR")
+        : item.created_at
         ? new Date(item.created_at).toLocaleDateString("tr-TR")
         : "Tarihsiz";
 
@@ -295,7 +308,6 @@ export default function Home() {
     };
   }, [filteredLogs]);
 
-  // Malzeme bazlı mevcut stok toplamı
   const stockSummary = useMemo(() => {
     const grouped = {};
 
@@ -304,12 +316,8 @@ export default function Home() {
       const qty = Number(item.quantity || 0);
 
       if (!grouped[name]) grouped[name] = 0;
-
-      if (item.type === "çıkış") {
-        grouped[name] -= qty;
-      } else {
-        grouped[name] += qty;
-      }
+      if (item.type === "çıkış") grouped[name] -= qty;
+      else grouped[name] += qty;
     });
 
     return Object.entries(grouped).map(([name, quantity]) => ({
@@ -319,9 +327,10 @@ export default function Home() {
     }));
   }, [filteredSteel]);
 
-  const criticalStocks = useMemo(() => {
-    return stockSummary.filter((item) => item.quantity <= item.threshold);
-  }, [stockSummary]);
+  const criticalStocks = useMemo(
+    () => stockSummary.filter((item) => item.quantity <= item.threshold),
+    [stockSummary]
+  );
 
   function exportExcel() {
     const data = [
@@ -360,9 +369,9 @@ export default function Home() {
       ...filteredLogs.map((item) => ({
         Tür: "Günlük Rapor",
         Ayak: item.pier || "P1",
-        Ad: item.description,
+        Ad: item.description || "",
         Miktar: "",
-        Ek: "",
+        Ek: `Tarih: ${item.report_date || ""} | Hava: ${item.weather || ""} | Ekip: ${item.team || ""} | Engel: ${item.issue || ""}`,
         Tarih: item.created_at || "",
       })),
       ...stockSummary.map((item) => ({
@@ -708,8 +717,11 @@ export default function Home() {
             ) : (
               recentLogs.map((item) => (
                 <div key={item.id} style={styles.listItem}>
-                  <strong>{item.created_at}</strong>
-                  <div style={{ marginTop: 6 }}>{item.description}</div>
+                  <strong>Tarih:</strong> {item.report_date || "-"}
+                  <div><strong>Hava:</strong> {item.weather || "-"}</div>
+                  <div><strong>Ekip:</strong> {item.team || "-"}</div>
+                  <div style={{ marginTop: 6 }}><strong>Yapılan İş:</strong> {item.description || "-"}</div>
+                  <div style={{ marginTop: 6 }}><strong>Engel/Aksama:</strong> {item.issue || "-"}</div>
                 </div>
               ))
             )}
@@ -825,16 +837,49 @@ export default function Home() {
           </div>
 
           <div style={styles.card}>
-            <h2 style={styles.subtitle}>Günlük Rapor - {selectedPier}</h2>
-            <textarea
-              style={styles.textarea}
-              value={logText}
-              onChange={(e) => setLogText(e.target.value)}
-              placeholder="Bugün yapılan işleri yaz"
-            />
+            <h2 style={styles.subtitle}>Gelişmiş Günlük Rapor - {selectedPier}</h2>
+            <div style={styles.formGrid}>
+              <input
+                style={styles.input}
+                type="date"
+                value={reportDate}
+                onChange={(e) => setReportDate(e.target.value)}
+              />
+              <input
+                style={styles.input}
+                placeholder="Hava durumu"
+                value={weather}
+                onChange={(e) => setWeather(e.target.value)}
+              />
+              <input
+                style={styles.input}
+                placeholder="Çalışan ekip"
+                value={team}
+                onChange={(e) => setTeam(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <textarea
+                style={styles.textarea}
+                value={logText}
+                onChange={(e) => setLogText(e.target.value)}
+                placeholder="Bugün yapılan işleri yaz"
+              />
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <textarea
+                style={styles.textarea}
+                value={issue}
+                onChange={(e) => setIssue(e.target.value)}
+                placeholder="Engel / aksama / iş durduran sebepler"
+              />
+            </div>
+
             <div style={{ marginTop: 10 }}>
               <button style={styles.button} onClick={addLog}>
-                Kaydet
+                Raporu Kaydet
               </button>
             </div>
           </div>
