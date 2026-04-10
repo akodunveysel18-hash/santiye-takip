@@ -42,6 +42,11 @@ export default function Home() {
   const [progressTotal, setProgressTotal] = useState("");
   const [progressDone, setProgressDone] = useState("");
 
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const [onlyWithImage, setOnlyWithImage] = useState(false);
+
   const stockThresholds = {
     "Ø8": 5,
     "Ø10": 5,
@@ -307,10 +312,34 @@ export default function Home() {
     [steel, selectedPier]
   );
 
-  const filteredLogs = useMemo(
-    () => logs.filter((item) => (item.pier || "P1") === selectedPier),
-    [logs, selectedPier]
-  );
+  const filteredLogs = useMemo(() => {
+    return logs.filter((item) => {
+      if ((item.pier || "P1") !== selectedPier) return false;
+      if (filterStartDate && item.report_date && item.report_date < filterStartDate)
+        return false;
+      if (filterEndDate && item.report_date && item.report_date > filterEndDate)
+        return false;
+      if (onlyWithImage && !item.image_url) return false;
+
+      if (filterText) {
+        const q = filterText.toLowerCase();
+        const inDescription = item.description?.toLowerCase().includes(q);
+        const inTeam = item.team?.toLowerCase().includes(q);
+        const inWeather = item.weather?.toLowerCase().includes(q);
+        const inIssue = item.issue?.toLowerCase().includes(q);
+        if (!(inDescription || inTeam || inWeather || inIssue)) return false;
+      }
+
+      return true;
+    });
+  }, [
+    logs,
+    selectedPier,
+    filterStartDate,
+    filterEndDate,
+    filterText,
+    onlyWithImage,
+  ]);
 
   const filteredProgress = useMemo(
     () => progress.filter((item) => (item.pier || "P1") === selectedPier),
@@ -891,6 +920,41 @@ export default function Home() {
         </div>
       </div>
 
+      <div style={styles.card}>
+        <h2 style={styles.subtitle}>🔎 Rapor Filtreleme</h2>
+        <div style={styles.formGrid}>
+          <input
+            type="date"
+            style={styles.input}
+            value={filterStartDate}
+            onChange={(e) => setFilterStartDate(e.target.value)}
+          />
+
+          <input
+            type="date"
+            style={styles.input}
+            value={filterEndDate}
+            onChange={(e) => setFilterEndDate(e.target.value)}
+          />
+
+          <input
+            style={styles.input}
+            placeholder="Metin ara..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+          />
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={onlyWithImage}
+              onChange={(e) => setOnlyWithImage(e.target.checked)}
+            />
+            Sadece fotoğraflı
+          </label>
+        </div>
+      </div>
+
       <div style={styles.dashboardGrid}>
         <div>
           <div style={styles.card}>
@@ -937,12 +1001,7 @@ export default function Home() {
                 stroke: { curve: "smooth" },
                 dataLabels: { enabled: true },
               }}
-              series={[
-                {
-                  name: "Günlük İmalat",
-                  data: productionByDay.values,
-                },
-              ]}
+              series={[{ name: "Günlük İmalat", data: productionByDay.values }]}
               type="line"
               width="100%"
               height={320}
@@ -958,12 +1017,7 @@ export default function Home() {
                 stroke: { curve: "smooth" },
                 dataLabels: { enabled: true },
               }}
-              series={[
-                {
-                  name: "Rapor Adedi",
-                  data: logsByDay.values,
-                },
-              ]}
+              series={[{ name: "Rapor Adedi", data: logsByDay.values }]}
               type="line"
               width="100%"
               height={320}
