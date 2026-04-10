@@ -173,23 +173,74 @@ export default function Home() {
   }
 
   async function uploadReportImage(file) {
-    if (!file) return "";
-
-    async function uploadReportImage(file) {
   if (!file) return "";
 
   const fileExt = file.name.split(".").pop();
-  const fileName = `${Date.now()}.${fileExt}`;
-  const filePath = fileName; // klasör kullanmıyoruz
+  const fileName = `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${fileExt}`;
 
-  const { error } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from("daily-report-images")
-    .upload(filePath, file);
+    .upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
 
-  if (error) {
-    alert("Upload hata: " + error.message);
+  if (uploadError) {
+    console.error("UPLOAD ERROR:", uploadError);
+    alert("Fotoğraf yüklenemedi: " + uploadError.message);
     return "";
   }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("daily-report-images").getPublicUrl(fileName);
+
+  console.log("PUBLIC URL:", publicUrl);
+  return publicUrl || "";
+}
+
+async function addLog() {
+  if (!logText) {
+    alert("Yapılan iş kısmı boş olamaz");
+    return;
+  }
+
+  let imageUrl = "";
+
+  if (reportImage) {
+    imageUrl = await uploadReportImage(reportImage);
+  }
+
+  const { data, error } = await supabase.from("daily_logs").insert([
+    {
+      pier: selectedPier,
+      report_date: reportDate,
+      weather,
+      team,
+      description: logText,
+      issue,
+      image_url: imageUrl,
+    },
+  ]);
+
+  console.log("INSERT RESULT:", data, error, imageUrl);
+
+  if (error) {
+    alert("Rapor kayıt hatası: " + error.message);
+    return;
+  }
+
+  setReportDate(todayStr);
+  setWeather("");
+  setTeam("");
+  setLogText("");
+  setIssue("");
+  setReportImage(null);
+
+  loadData();
+}
 
   const { data } = supabase.storage
     .from("daily-report-images")
@@ -980,13 +1031,19 @@ export default function Home() {
                   <div style={{ marginTop: 6 }}>
                     <strong>Engel/Aksama:</strong> {item.issue || "-"}
                   </div>
-                  {item.image_url && (
-                    <img
-                      src={item.image_url}
-                      alt="Rapor görseli"
-                      style={styles.image}
-                    />
-                  )}
+                  {item.image_url ? (
+  <img
+    src={item.image_url}
+    alt="Rapor görseli"
+    style={styles.image}
+    onError={(e) => {
+      console.log("IMAGE LOAD ERROR:", item.image_url);
+      e.currentTarget.style.display = "none";
+    }}
+  />
+) : (
+  <div style={{ marginTop: 8, color: "#999" }}>Fotoğraf yok</div>
+)}
                 </div>
               ))
             )}
