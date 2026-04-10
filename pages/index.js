@@ -303,7 +303,28 @@ export default function Home() {
   }, [productions]);
 
   const recentLogs = useMemo(() => filteredLogs.slice(0, 5), [filteredLogs]);
+const todayStr = new Date().toISOString().split("T")[0];
 
+const todayProductionTotal = useMemo(() => {
+  return filteredProductions
+    .filter((item) => item.created_at && item.created_at.slice(0, 10) === todayStr)
+    .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+}, [filteredProductions]);
+
+const todayLogs = useMemo(() => {
+  return filteredLogs.filter((item) => {
+    if (item.report_date) return item.report_date === todayStr;
+    if (item.created_at) return item.created_at.slice(0, 10) === todayStr;
+    return false;
+  });
+}, [filteredLogs]);
+
+const todayWorkSummary = useMemo(() => {
+  return todayLogs
+    .map((item) => item.description)
+    .filter(Boolean)
+    .slice(0, 3);
+}, [todayLogs]);
   const productionByDay = useMemo(() => {
     const grouped = {};
 
