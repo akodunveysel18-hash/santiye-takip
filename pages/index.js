@@ -176,7 +176,9 @@ export default function Home() {
     if (!file) return "";
 
     const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${fileExt}`;
     const filePath = `${selectedPier}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -299,32 +301,37 @@ export default function Home() {
       return { pier, total };
     });
 
-    return piers.sort((a, b) => b.total - a.total)[0] || { pier: "-", total: 0 };
+    return piers.sort((a, b) => b.total - a.total)[0] || {
+      pier: "-",
+      total: 0,
+    };
   }, [productions]);
 
   const recentLogs = useMemo(() => filteredLogs.slice(0, 5), [filteredLogs]);
-  const todayStr = new Date().toISOString().split("T")[0];
 
   const todayProductionTotal = useMemo(() => {
-  return filteredProductions
-        .filter((item) => item.created_at && item.created_at.slice(0, 10) === todayStr)
-        .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  }, [filteredProductions]);
+    return filteredProductions
+      .filter(
+        (item) => item.created_at && item.created_at.slice(0, 10) === todayStr
+      )
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  }, [filteredProductions, todayStr]);
 
   const todayLogs = useMemo(() => {
-  return filteredLogs.filter((item) => {
+    return filteredLogs.filter((item) => {
       if (item.report_date) return item.report_date === todayStr;
       if (item.created_at) return item.created_at.slice(0, 10) === todayStr;
-    return false;
-  });
-}, [filteredLogs]);
+      return false;
+    });
+  }, [filteredLogs, todayStr]);
 
-const todayWorkSummary = useMemo(() => {
-  return todayLogs
-    .map((item) => item.description)
-    .filter(Boolean)
-    .slice(0, 3);
-}, [todayLogs]);
+  const todayWorkSummary = useMemo(() => {
+    return todayLogs
+      .map((item) => item.description)
+      .filter(Boolean)
+      .slice(0, 3);
+  }, [todayLogs]);
+
   const productionByDay = useMemo(() => {
     const grouped = {};
 
@@ -451,7 +458,11 @@ const todayWorkSummary = useMemo(() => {
     doc.text(`Günlük Şantiye Raporu - ${selectedPier}`, 14, 15);
 
     doc.setFontSize(10);
-    doc.text(`Oluşturma Tarihi: ${new Date().toLocaleDateString("tr-TR")}`, 14, 22);
+    doc.text(
+      `Oluşturma Tarihi: ${new Date().toLocaleDateString("tr-TR")}`,
+      14,
+      22
+    );
 
     autoTable(doc, {
       startY: 28,
@@ -531,6 +542,14 @@ const todayWorkSummary = useMemo(() => {
     warningCard: {
       background: "#fff4e5",
       border: "1px solid #f59e0b",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    },
+    infoCard: {
+      background: "#ecfeff",
+      border: "1px solid #06b6d4",
       borderRadius: 12,
       padding: 16,
       marginBottom: 16,
@@ -657,7 +676,8 @@ const todayWorkSummary = useMemo(() => {
 
       <div style={styles.topBar}>
         <div style={{ ...styles.card, padding: 10, marginBottom: 0 }}>
-          Giriş: <strong>{session.user.email}</strong> | Yetki: <strong>{userRole}</strong>
+          Giriş: <strong>{session.user.email}</strong> | Yetki:{" "}
+          <strong>{userRole}</strong>
         </div>
 
         <select
@@ -684,12 +704,40 @@ const todayWorkSummary = useMemo(() => {
         </button>
       </div>
 
+      <div style={styles.infoCard}>
+        <h2 style={{ marginTop: 0 }}>
+          📌 Bugün Yapılan İşler Özeti - {selectedPier}
+        </h2>
+
+        <div style={styles.listItem}>
+          Bugünkü İmalat Toplamı: {todayProductionTotal}
+        </div>
+
+        <div style={styles.listItem}>
+          Bugünkü Rapor Sayısı: {todayLogs.length}
+        </div>
+
+        <div style={styles.listItem}>
+          Son Durum:
+          {todayWorkSummary.length > 0 ? (
+            <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+              {todayWorkSummary.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <span> Bugün için kayıt yok.</span>
+          )}
+        </div>
+      </div>
+
       {criticalStocks.length > 0 && (
         <div style={styles.warningCard}>
           <h2 style={{ marginTop: 0 }}>⚠ Kritik Stok Uyarısı - {selectedPier}</h2>
           {criticalStocks.map((item) => (
             <div key={item.name} style={styles.listItem}>
-              <span style={styles.dangerText}>{item.name}</span> — Mevcut: {item.quantity} / Kritik Seviye: {item.threshold}
+              <span style={styles.dangerText}>{item.name}</span> — Mevcut:{" "}
+              {item.quantity} / Kritik Seviye: {item.threshold}
             </div>
           ))}
         </div>
@@ -826,10 +874,18 @@ const todayWorkSummary = useMemo(() => {
                   <strong>Tarih:</strong> {item.report_date || "-"}
                   <div><strong>Hava:</strong> {item.weather || "-"}</div>
                   <div><strong>Ekip:</strong> {item.team || "-"}</div>
-                  <div style={{ marginTop: 6 }}><strong>Yapılan İş:</strong> {item.description || "-"}</div>
-                  <div style={{ marginTop: 6 }}><strong>Engel/Aksama:</strong> {item.issue || "-"}</div>
+                  <div style={{ marginTop: 6 }}>
+                    <strong>Yapılan İş:</strong> {item.description || "-"}
+                  </div>
+                  <div style={{ marginTop: 6 }}>
+                    <strong>Engel/Aksama:</strong> {item.issue || "-"}
+                  </div>
                   {item.image_url && (
-                    <img src={item.image_url} alt="Rapor görseli" style={styles.image} />
+                    <img
+                      src={item.image_url}
+                      alt="Rapor görseli"
+                      style={styles.image}
+                    />
                   )}
                 </div>
               ))
@@ -845,7 +901,10 @@ const todayWorkSummary = useMemo(() => {
                 <div key={item.name} style={styles.listItem}>
                   <strong>{item.name}</strong> — Mevcut: {item.quantity}
                   {item.quantity <= item.threshold && (
-                    <span style={{ color: "#b45309", fontWeight: 700 }}> (Kritik)</span>
+                    <span style={{ color: "#b45309", fontWeight: 700 }}>
+                      {" "}
+                      (Kritik)
+                    </span>
                   )}
                 </div>
               ))
@@ -854,10 +913,18 @@ const todayWorkSummary = useMemo(() => {
 
           <div style={styles.card}>
             <h2 style={styles.subtitle}>Hızlı Özet - {selectedPier}</h2>
-            <div style={styles.listItem}>İmalat Kaydı: {filteredProductions.length}</div>
-            <div style={styles.listItem}>Demir Hareketi: {filteredSteel.length}</div>
-            <div style={styles.listItem}>Hakediş Kalemi: {filteredProgress.length}</div>
-            <div style={styles.listItem}>Günlük Rapor: {filteredLogs.length}</div>
+            <div style={styles.listItem}>
+              İmalat Kaydı: {filteredProductions.length}
+            </div>
+            <div style={styles.listItem}>
+              Demir Hareketi: {filteredSteel.length}
+            </div>
+            <div style={styles.listItem}>
+              Hakediş Kalemi: {filteredProgress.length}
+            </div>
+            <div style={styles.listItem}>
+              Günlük Rapor: {filteredLogs.length}
+            </div>
           </div>
         </div>
       </div>
