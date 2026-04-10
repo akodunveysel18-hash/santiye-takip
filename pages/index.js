@@ -36,6 +36,7 @@ export default function Home() {
   const [logText, setLogText] = useState("");
   const [issue, setIssue] = useState("");
   const [reportImage, setReportImage] = useState(null);
+  const [isSavingLog, setIsSavingLog] = useState(false);
 
   const [progressItem, setProgressItem] = useState("");
   const [progressTotal, setProgressTotal] = useState("");
@@ -141,13 +142,18 @@ export default function Home() {
   async function addProduction() {
     if (!productionName || !productionQty) return;
 
-    await supabase.from("productions").insert([
+    const { error } = await supabase.from("productions").insert([
       {
         name: productionName,
         quantity: Number(productionQty),
         pier: selectedPier,
       },
     ]);
+
+    if (error) {
+      alert("İmalat kayıt hatası: " + error.message);
+      return;
+    }
 
     setProductionName("");
     setProductionQty("");
@@ -157,7 +163,7 @@ export default function Home() {
   async function addSteel() {
     if (!steelName || !steelQty) return;
 
-    await supabase.from("steel_stock").insert([
+    const { error } = await supabase.from("steel_stock").insert([
       {
         name: steelName,
         quantity: Number(steelQty),
@@ -166,9 +172,37 @@ export default function Home() {
       },
     ]);
 
+    if (error) {
+      alert("Stok kayıt hatası: " + error.message);
+      return;
+    }
+
     setSteelName("");
     setSteelQty("");
     setSteelType("giriş");
+    loadData();
+  }
+
+  async function addProgress() {
+    if (!progressItem || !progressTotal || !progressDone) return;
+
+    const { error } = await supabase.from("progress").insert([
+      {
+        item: progressItem,
+        total_quantity: Number(progressTotal),
+        completed_quantity: Number(progressDone),
+        pier: selectedPier,
+      },
+    ]);
+
+    if (error) {
+      alert("Hakediş kayıt hatası: " + error.message);
+      return;
+    }
+
+    setProgressItem("");
+    setProgressTotal("");
+    setProgressDone("");
     loadData();
   }
 
@@ -179,69 +213,88 @@ export default function Home() {
     const fileName = `${Date.now()}-${Math.random()
       .toString(36)
       .slice(2)}.${fileExt}`;
-    const filePath = `${selectedPier}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("daily-report-images")
-      .upload(filePath, file);
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
 
     if (uploadError) {
-      console.error(uploadError);
+      console.error("UPLOAD ERROR:", uploadError);
+      alert("Fotoğraf yükleme hatası: " + uploadError.message);
       return "";
     }
 
     const { data } = supabase.storage
       .from("daily-report-images")
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName);
 
     return data?.publicUrl || "";
   }
 
   async function addLog() {
-    if (!logText) return;
+    if (isSavingLog) return;
 
-    let imageUrl = "";
-    if (reportImage) {
-      imageUrl = await uploadReportImage(reportImage);
+    if (!reportDate) {
+      alert("Tarih seçmelisin");
+      return;
     }
 
-    await supabase.from("daily_logs").insert([
-      {
+    if (!logText.trim()) {
+      alert("Yapılan iş alanı boş olamaz");
+      return;
+    }
+
+    setIsSavingLog(true);
+
+    try {
+      let imageUrl = "";
+
+      if (reportImage) {
+        imageUrl = await uploadReportImage(reportImage);
+        if (!imageUrl) {
+          setIsSavingLog(false);
+          return;
+        }
+      }
+
+      const payload = {
         pier: selectedPier,
         report_date: reportDate,
         weather,
         team,
-        description: logText,
+        description: logText.trim(),
         issue,
         image_url: imageUrl,
-      },
-    ]);
+      };
 
-    setReportDate(todayStr);
-    setWeather("");
-    setTeam("");
-    setLogText("");
-    setIssue("");
-    setReportImage(null);
-    loadData();
-  }
+      const { error } = await supabase.from("daily_logs").insert([payload]);
 
-  async function addProgress() {
-    if (!progressItem || !progressTotal || !progressDone) return;
+      if (error) {
+        console.error("INSERT ERROR:", error);
+        alert("Rapor kayıt hatası: " + error.message);
+        setIsSavingLog(false);
+        return;
+      }
 
-    await supabase.from("progress").insert([
-      {
-        item: progressItem,
-        total_quantity: Number(progressTotal),
-        completed_quantity: Number(progressDone),
-        pier: selectedPier,
-      },
-    ]);
+      alert("Rapor kaydedildi");
 
-    setProgressItem("");
-    setProgressTotal("");
-    setProgressDone("");
-    loadData();
+      setReportDate(todayStr);
+      setWeather("");
+      setTeam("");
+      setLogText("");
+      setIssue("");
+      setReportImage(null);
+
+      await loadData();
+    } catch (err) {
+      console.error("SAVE ERROR:", err);
+      alert("Beklenmeyen bir hata oluştu");
+    } finally {
+      setIsSavingLog(false);
+    }
   }
 
   const filteredProductions = useMemo(
@@ -286,20 +339,19 @@ export default function Home() {
         ).toFixed(1)
       : "0";
 
-  const pierTotals = ["P1", "P2", "P3", "P4"].map((pier) => {
-    return productions
+  const pierTotals = ["P1", "P2", "P3", "P4"].map((pier) =>
+    productions
       .filter((item) => (item.pier || "P1") === pier)
-      .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  });
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  );
 
   const maxPierData = useMemo(() => {
-    const piers = ["P1", "P2", "P3", "P4"].map((pier) => {
-      const total = productions
+    const piers = ["P1", "P2", "P3", "P4"].map((pier) => ({
+      pier,
+      total: productions
         .filter((item) => (item.pier || "P1") === pier)
-        .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-
-      return { pier, total };
-    });
+        .reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    }));
 
     return piers.sort((a, b) => b.total - a.total)[0] || {
       pier: "-",
@@ -392,6 +444,10 @@ export default function Home() {
     () => stockSummary.filter((item) => item.quantity <= item.threshold),
     [stockSummary]
   );
+
+  const galleryImages = useMemo(() => {
+    return filteredLogs.filter((item) => item.image_url).slice(0, 12);
+  }, [filteredLogs]);
 
   function exportExcel() {
     const data = [
@@ -495,12 +551,6 @@ export default function Home() {
 
     doc.save(`gunluk_rapor_${selectedPier}.pdf`);
   }
-
-  const galleryImages = useMemo(() => {
-    return filteredLogs
-      .filter((item) => item.image_url)
-      .slice(0, 12);
-  }, [filteredLogs]);
 
   const styles = {
     page: {
@@ -851,12 +901,7 @@ export default function Home() {
                 xaxis: { categories: ["P1", "P2", "P3", "P4"] },
                 dataLabels: { enabled: true },
               }}
-              series={[
-                {
-                  name: "Toplam İmalat",
-                  data: pierTotals,
-                },
-              ]}
+              series={[{ name: "Toplam İmalat", data: pierTotals }]}
               type="bar"
               width="100%"
               height={320}
@@ -868,9 +913,7 @@ export default function Home() {
             <Chart
               options={{
                 chart: { id: "imalat-grafigi", toolbar: { show: false } },
-                xaxis: {
-                  categories: filteredProductions.map((p) => p.name),
-                },
+                xaxis: { categories: filteredProductions.map((p) => p.name) },
                 dataLabels: { enabled: true },
               }}
               series={[
@@ -939,6 +982,9 @@ export default function Home() {
                       src={item.image_url}
                       alt="Saha görseli"
                       style={styles.galleryImage}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
                     />
                     <div style={styles.galleryMeta}>
                       <div style={styles.pill}>{item.report_date || "-"}</div>
@@ -972,12 +1018,17 @@ export default function Home() {
                   <div style={{ marginTop: 6 }}>
                     <strong>Engel/Aksama:</strong> {item.issue || "-"}
                   </div>
-                  {item.image_url && (
+                  {item.image_url ? (
                     <img
                       src={item.image_url}
                       alt="Rapor görseli"
                       style={styles.image}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
                     />
+                  ) : (
+                    <div style={{ marginTop: 8, color: "#999" }}>Fotoğraf yok</div>
                   )}
                 </div>
               ))
@@ -1155,11 +1206,16 @@ export default function Home() {
                 accept="image/*"
                 onChange={(e) => setReportImage(e.target.files?.[0] || null)}
               />
+              {reportImage ? (
+                <div style={{ marginTop: 8, fontSize: 14, color: "#555" }}>
+                  Seçilen dosya: {reportImage.name}
+                </div>
+              ) : null}
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <button style={styles.button} onClick={addLog}>
-                Raporu Kaydet
+              <button style={styles.button} onClick={addLog} disabled={isSavingLog}>
+                {isSavingLog ? "Kaydediliyor..." : "Raporu Kaydet"}
               </button>
             </div>
           </div>
