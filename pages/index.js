@@ -38,6 +38,9 @@ export default function Home() {
   const [reportImage, setReportImage] = useState(null);
   const [isSavingLog, setIsSavingLog] = useState(false);
 
+  const [editingLogId, setEditingLogId] = useState(null);
+  const [existingImageUrl, setExistingImageUrl] = useState("");
+
   const [progressItem, setProgressItem] = useState("");
   const [progressTotal, setProgressTotal] = useState("");
   const [progressDone, setProgressDone] = useState("");
@@ -239,6 +242,17 @@ export default function Home() {
     return data?.publicUrl || "";
   }
 
+  function resetLogForm() {
+    setEditingLogId(null);
+    setExistingImageUrl("");
+    setReportDate(todayStr);
+    setWeather("");
+    setTeam("");
+    setLogText("");
+    setIssue("");
+    setReportImage(null);
+  }
+
   async function addLog() {
     if (isSavingLog) return;
 
@@ -255,7 +269,7 @@ export default function Home() {
     setIsSavingLog(true);
 
     try {
-      let imageUrl = "";
+      let imageUrl = existingImageUrl || "";
 
       if (reportImage) {
         imageUrl = await uploadReportImage(reportImage);
@@ -275,24 +289,29 @@ export default function Home() {
         image_url: imageUrl,
       };
 
-      const { error } = await supabase.from("daily_logs").insert([payload]);
+      let error = null;
+
+      if (editingLogId) {
+        const result = await supabase
+          .from("daily_logs")
+          .update(payload)
+          .eq("id", editingLogId);
+        error = result.error;
+      } else {
+        const result = await supabase.from("daily_logs").insert([payload]);
+        error = result.error;
+      }
 
       if (error) {
-        console.error("INSERT ERROR:", error);
+        console.error("SAVE ERROR:", error);
         alert("Rapor kayıt hatası: " + error.message);
         setIsSavingLog(false);
         return;
       }
 
-      alert("Rapor kaydedildi");
+      alert(editingLogId ? "Rapor güncellendi" : "Rapor kaydedildi");
 
-      setReportDate(todayStr);
-      setWeather("");
-      setTeam("");
-      setLogText("");
-      setIssue("");
-      setReportImage(null);
-
+      resetLogForm();
       await loadData();
     } catch (err) {
       console.error("SAVE ERROR:", err);
@@ -300,6 +319,37 @@ export default function Home() {
     } finally {
       setIsSavingLog(false);
     }
+  }
+
+  function startEditLog(item) {
+    setEditingLogId(item.id);
+    setReportDate(item.report_date || todayStr);
+    setWeather(item.weather || "");
+    setTeam(item.team || "");
+    setLogText(item.description || "");
+    setIssue(item.issue || "");
+    setExistingImageUrl(item.image_url || "");
+    setReportImage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function deleteLog(id) {
+    const ok = window.confirm("Bu raporu silmek istediğine emin misin?");
+    if (!ok) return;
+
+    const { error } = await supabase.from("daily_logs").delete().eq("id", id);
+
+    if (error) {
+      alert("Silme hatası: " + error.message);
+      return;
+    }
+
+    if (editingLogId === id) {
+      resetLogForm();
+    }
+
+    await loadData();
+    alert("Rapor silindi");
   }
 
   const filteredProductions = useMemo(
@@ -625,6 +675,35 @@ export default function Home() {
       fontWeight: 600,
       boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
     },
+    secondaryButton: {
+      padding: "8px 12px",
+      border: "none",
+      borderRadius: 8,
+      cursor: "pointer",
+      background: "#2563eb",
+      color: "white",
+      fontWeight: 600,
+      marginRight: 8,
+    },
+    dangerButton: {
+      padding: "8px 12px",
+      border: "none",
+      borderRadius: 8,
+      cursor: "pointer",
+      background: "#dc2626",
+      color: "white",
+      fontWeight: 600,
+    },
+    grayButton: {
+      padding: "10px 14px",
+      border: "none",
+      borderRadius: 10,
+      cursor: "pointer",
+      background: "#6b7280",
+      color: "white",
+      fontWeight: 600,
+      marginLeft: 8,
+    },
     select: {
       padding: "10px 12px",
       borderRadius: 10,
@@ -651,6 +730,14 @@ export default function Home() {
     infoCard: {
       background: "#ecfeff",
       border: "1px solid #67e8f9",
+      borderRadius: 16,
+      padding: 18,
+      marginBottom: 16,
+      boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+    },
+    editCard: {
+      background: "#eff6ff",
+      border: "1px solid #93c5fd",
       borderRadius: 16,
       padding: 18,
       marginBottom: 16,
@@ -768,6 +855,12 @@ export default function Home() {
       fontWeight: 700,
       marginBottom: 8,
     },
+    actionRow: {
+      marginTop: 10,
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+    },
   };
 
   if (!session) {
@@ -874,6 +967,15 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {editingLogId && (
+        <div style={styles.editCard}>
+          <strong>Şu anda düzenleme modundasın.</strong> Kaydedersen mevcut rapor güncellenir.
+          <button style={styles.grayButton} onClick={resetLogForm}>
+            Düzenlemeyi İptal Et
+          </button>
+        </div>
+      )}
 
       {criticalStocks.length > 0 && (
         <div style={styles.warningCard}>
@@ -1084,6 +1186,23 @@ export default function Home() {
                   ) : (
                     <div style={{ marginTop: 8, color: "#999" }}>Fotoğraf yok</div>
                   )}
+
+                  {mode === "chief" && (
+                    <div style={styles.actionRow}>
+                      <button
+                        style={styles.secondaryButton}
+                        onClick={() => startEditLog(item)}
+                      >
+                        Düzenle
+                      </button>
+                      <button
+                        style={styles.dangerButton}
+                        onClick={() => deleteLog(item.id)}
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -1213,7 +1332,12 @@ export default function Home() {
           </div>
 
           <div style={styles.card}>
-            <h2 style={styles.subtitle}>Gelişmiş Günlük Rapor - {selectedPier}</h2>
+            <h2 style={styles.subtitle}>
+              {editingLogId
+                ? `Günlük Rapor Düzenle - ${selectedPier}`
+                : `Gelişmiş Günlük Rapor - ${selectedPier}`}
+            </h2>
+
             <div style={styles.formGrid}>
               <input
                 style={styles.input}
@@ -1253,6 +1377,19 @@ export default function Home() {
               />
             </div>
 
+            {existingImageUrl ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ marginBottom: 6, fontWeight: 700 }}>
+                  Mevcut fotoğraf
+                </div>
+                <img
+                  src={existingImageUrl}
+                  alt="Mevcut rapor görseli"
+                  style={styles.image}
+                />
+              </div>
+            ) : null}
+
             <div style={{ marginTop: 12 }}>
               <input
                 style={styles.input}
@@ -1269,8 +1406,18 @@ export default function Home() {
 
             <div style={{ marginTop: 10 }}>
               <button style={styles.button} onClick={addLog} disabled={isSavingLog}>
-                {isSavingLog ? "Kaydediliyor..." : "Raporu Kaydet"}
+                {isSavingLog
+                  ? "Kaydediliyor..."
+                  : editingLogId
+                  ? "Güncellemeyi Kaydet"
+                  : "Raporu Kaydet"}
               </button>
+
+              {editingLogId ? (
+                <button style={styles.grayButton} onClick={resetLogForm}>
+                  İptal
+                </button>
+              ) : null}
             </div>
           </div>
         </>
