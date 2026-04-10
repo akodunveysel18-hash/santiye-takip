@@ -496,19 +496,39 @@ export default function Home() {
     doc.save(`gunluk_rapor_${selectedPier}.pdf`);
   }
 
+  const galleryImages = useMemo(() => {
+    return filteredLogs
+      .filter((item) => item.image_url)
+      .slice(0, 12);
+  }, [filteredLogs]);
+
   const styles = {
     page: {
-      padding: 16,
-      maxWidth: 1280,
+      padding: 20,
+      maxWidth: 1320,
       margin: "0 auto",
       fontFamily: "Arial, sans-serif",
-      background: "#f7f7f7",
+      background: "#f3f4f6",
       minHeight: "100vh",
+      color: "#111827",
+    },
+    titleWrap: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 12,
+      marginBottom: 20,
     },
     title: {
-      fontSize: 28,
+      fontSize: 30,
       fontWeight: 700,
-      marginBottom: 16,
+      margin: 0,
+    },
+    subTitle: {
+      fontSize: 14,
+      color: "#6b7280",
+      marginTop: 6,
     },
     topBar: {
       display: "flex",
@@ -519,41 +539,43 @@ export default function Home() {
     button: {
       padding: "10px 14px",
       border: "none",
-      borderRadius: 8,
+      borderRadius: 10,
       cursor: "pointer",
-      background: "#1f2937",
+      background: "#111827",
       color: "white",
       fontWeight: 600,
+      boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
     },
     select: {
       padding: "10px 12px",
-      borderRadius: 8,
-      border: "1px solid #ccc",
+      borderRadius: 10,
+      border: "1px solid #d1d5db",
       minWidth: 100,
       background: "white",
     },
     card: {
       background: "white",
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: 16,
+      padding: 18,
       marginBottom: 16,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+      border: "1px solid #e5e7eb",
     },
     warningCard: {
-      background: "#fff4e5",
-      border: "1px solid #f59e0b",
-      borderRadius: 12,
-      padding: 16,
+      background: "#fff7ed",
+      border: "1px solid #fdba74",
+      borderRadius: 16,
+      padding: 18,
       marginBottom: 16,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
     },
     infoCard: {
       background: "#ecfeff",
-      border: "1px solid #06b6d4",
-      borderRadius: 12,
-      padding: 16,
+      border: "1px solid #67e8f9",
+      borderRadius: 16,
+      padding: 18,
       marginBottom: 16,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
     },
     dangerText: {
       color: "#b45309",
@@ -561,14 +583,15 @@ export default function Home() {
     },
     statsGrid: {
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-      gap: 12,
-      marginBottom: 16,
+      gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+      gap: 14,
+      marginBottom: 18,
     },
     statBox: {
-      background: "#eef2ff",
-      borderRadius: 10,
-      padding: 14,
+      background: "linear-gradient(135deg, #eef2ff, #f8fafc)",
+      borderRadius: 14,
+      padding: 16,
+      border: "1px solid #e5e7eb",
     },
     formGrid: {
       display: "grid",
@@ -579,28 +602,29 @@ export default function Home() {
     input: {
       width: "100%",
       padding: "10px 12px",
-      borderRadius: 8,
-      border: "1px solid #ccc",
+      borderRadius: 10,
+      border: "1px solid #d1d5db",
       boxSizing: "border-box",
       background: "white",
     },
     textarea: {
       width: "100%",
       padding: "10px 12px",
-      borderRadius: 8,
-      border: "1px solid #ccc",
+      borderRadius: 10,
+      border: "1px solid #d1d5db",
       boxSizing: "border-box",
       minHeight: 110,
       background: "white",
     },
     listItem: {
       padding: "10px 12px",
-      borderBottom: "1px solid #eee",
+      borderBottom: "1px solid #f1f5f9",
     },
     subtitle: {
       marginTop: 0,
-      marginBottom: 12,
+      marginBottom: 14,
       fontSize: 20,
+      fontWeight: 700,
     },
     dashboardGrid: {
       display: "grid",
@@ -620,16 +644,50 @@ export default function Home() {
       width: "100%",
       maxWidth: 420,
       background: "white",
-      borderRadius: 14,
+      borderRadius: 16,
       padding: 24,
-      boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
     },
     image: {
       width: "100%",
       maxWidth: 260,
-      borderRadius: 8,
+      borderRadius: 10,
       marginTop: 10,
       border: "1px solid #ddd",
+      objectFit: "cover",
+    },
+    galleryGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: 12,
+    },
+    galleryItem: {
+      background: "#fff",
+      border: "1px solid #e5e7eb",
+      borderRadius: 14,
+      overflow: "hidden",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+    },
+    galleryImage: {
+      width: "100%",
+      height: 150,
+      objectFit: "cover",
+      display: "block",
+    },
+    galleryMeta: {
+      padding: 10,
+      fontSize: 13,
+      lineHeight: 1.4,
+    },
+    pill: {
+      display: "inline-block",
+      padding: "4px 8px",
+      borderRadius: 999,
+      background: "#e0f2fe",
+      color: "#0369a1",
+      fontSize: 12,
+      fontWeight: 700,
+      marginBottom: 8,
     },
   };
 
@@ -672,7 +730,14 @@ export default function Home() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.title}>🏗️ Şantiye Takip Sistemi</div>
+      <div style={styles.titleWrap}>
+        <div>
+          <h1 style={styles.title}>🏗️ Şantiye Takip Sistemi</h1>
+          <div style={styles.subTitle}>
+            Ayak bazlı üretim, stok, günlük rapor ve saha görselleri
+          </div>
+        </div>
+      </div>
 
       <div style={styles.topBar}>
         <div style={{ ...styles.card, padding: 10, marginBottom: 0 }}>
@@ -861,6 +926,33 @@ export default function Home() {
               height={320}
             />
           </div>
+
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>📷 Günlük Rapor Galerisi - {selectedPier}</h2>
+            {galleryImages.length === 0 ? (
+              <p>Görsel yok</p>
+            ) : (
+              <div style={styles.galleryGrid}>
+                {galleryImages.map((item) => (
+                  <div key={item.id} style={styles.galleryItem}>
+                    <img
+                      src={item.image_url}
+                      alt="Saha görseli"
+                      style={styles.galleryImage}
+                    />
+                    <div style={styles.galleryMeta}>
+                      <div style={styles.pill}>{item.report_date || "-"}</div>
+                      <div><strong>Hava:</strong> {item.weather || "-"}</div>
+                      <div><strong>Ekip:</strong> {item.team || "-"}</div>
+                      <div style={{ marginTop: 6 }}>
+                        <strong>Açıklama:</strong> {item.description || "-"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
@@ -924,6 +1016,9 @@ export default function Home() {
             </div>
             <div style={styles.listItem}>
               Günlük Rapor: {filteredLogs.length}
+            </div>
+            <div style={styles.listItem}>
+              Fotoğraflı Rapor: {galleryImages.length}
             </div>
           </div>
         </div>
