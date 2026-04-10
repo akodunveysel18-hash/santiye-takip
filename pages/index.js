@@ -175,20 +175,28 @@ export default function Home() {
   async function uploadReportImage(file) {
     if (!file) return "";
 
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}.${fileExt}`;
-    const filePath = `${selectedPier}/${fileName}`;
+    async function uploadReportImage(file) {
+  if (!file) return "";
 
-    const { error: uploadError } = await supabase.storage
-      .from("daily-report-images")
-      .upload(filePath, file);
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${Date.now()}.${fileExt}`;
+  const filePath = fileName; // klasör kullanmıyoruz
 
-    if (uploadError) {
-      console.error(uploadError);
-      return "";
-    }
+  const { error } = await supabase.storage
+    .from("daily-report-images")
+    .upload(filePath, file);
+
+  if (error) {
+    alert("Upload hata: " + error.message);
+    return "";
+  }
+
+  const { data } = supabase.storage
+    .from("daily-report-images")
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
 
     const { data } = supabase.storage
       .from("daily-report-images")
