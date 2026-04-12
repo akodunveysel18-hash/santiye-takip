@@ -145,15 +145,58 @@ export default function Home() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      const currentSession = data.session;
-      setSession(currentSession || null);
+  let isMounted = true;
 
-      if (currentSession?.user?.email) {
-        await loadRole(currentSession.user.email);
-        await loadData();
+  async function initAuth() {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+      console.error("GET SESSION ERROR:", error);
+      if (isMounted) {
+        setSession(null);
+        setUserRole("chief");
       }
-    });
+      return;
+    }
+
+    const currentSession = data?.session || null;
+
+    if (!isMounted) return;
+
+    setSession(currentSession);
+
+    if (currentSession?.user?.email) {
+      await loadRole(currentSession.user.email);
+      await loadData();
+    } else {
+      setUserRole("chief");
+    }
+  }
+
+  initAuth();
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    if (!isMounted) return;
+
+    setSession(newSession || null);
+
+    if (newSession?.user?.email) {
+      await loadRole(newSession.user.email);
+      await loadData();
+    } else {
+      setUserRole("chief");
+      setSelectedImage("");
+      setEditingLogId(null);
+    }
+  });
+
+  return () => {
+    isMounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
 
     const {
       data: { subscription },
@@ -195,16 +238,25 @@ export default function Home() {
   }
 
   async function signOut() {
-  const { error } = await supabase.auth.signOut();
+  try {
+    const { error } = await supabase.auth.signOut();
 
-  if (error) {
-    alert("Çıkış hatası: " + error.message);
-    return;
+    if (error) {
+      console.error("SIGN OUT ERROR:", error);
+      alert("Çıkış hatası: " + error.message);
+      return;
+    }
+
+    setSession(null);
+    setUserRole("chief");
+    setSelectedImage("");
+    setEditingLogId(null);
+
+    window.location.href = window.location.pathname;
+  } catch (err) {
+    console.error("SIGN OUT CATCH ERROR:", err);
+    alert("Çıkış yapılırken beklenmeyen hata oluştu");
   }
-
-  setSession(null);
-  setUserRole("chief");
-  window.location.reload();
 }
 
   const canEdit = userRole === "chief";
@@ -1093,9 +1145,17 @@ export default function Home() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <button style={{ ...styles.button, width: "100%" }} onClick={signIn}>
-            Giriş Yap
-          </button>
+          <button
+              type="button"
+                style={styles.button}
+onClick={(e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  signOut();
+  }}
+>
+  Çıkış Yap
+  </button>
 
           {loginError ? (
             <div style={{ color: "red", marginTop: 12 }}>{loginError}</div>
