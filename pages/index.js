@@ -9,7 +9,7 @@ const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function Home() {
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState("office");
+  const [userRole, setUserRole] = useState("chief");
   const [selectedPier, setSelectedPier] = useState("P1");
 
   const [email, setEmail] = useState("");
@@ -67,21 +67,53 @@ export default function Home() {
   };
 
   async function loadRole(userEmail) {
-    const { data, error } = await supabase
-      .from("users")
-      .select("role, email")
-      .eq("email", userEmail)
-      .maybeSingle();
+  const safeEmail = (userEmail || "").trim().toLowerCase();
 
-    if (error) {
-      console.error("ROLE LOAD ERROR:", error);
+  const { data, error } = await supabase
+    .from("users")
+    .select("role, email")
+    .ilike("email", safeEmail)
+    .maybeSingle();
+
+  if (error) {
+    console.error("ROLE LOAD ERROR:", error);
+
+    if (safeEmail === "inelsan@taskopru.com") {
+      setUserRole("chief");
+      return;
+    }
+
+    if (safeEmail === "inelsanofis@taskopru.com") {
       setUserRole("office");
       return;
     }
 
-    const role = data?.role === "chief" ? "chief" : "office";
-    setUserRole(role);
+    setUserRole("chief");
+    return;
   }
+
+  if (data?.role === "chief") {
+    setUserRole("chief");
+    return;
+  }
+
+  if (data?.role === "office") {
+    setUserRole("office");
+    return;
+  }
+
+  if (safeEmail === "inelsan@taskopru.com") {
+    setUserRole("chief");
+    return;
+  }
+
+  if (safeEmail === "inelsanofis@taskopru.com") {
+    setUserRole("office");
+    return;
+  }
+
+  setUserRole("chief");
+}
 
   async function loadData() {
     const { data: p1 } = await supabase
@@ -163,10 +195,17 @@ export default function Home() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUserRole("office");
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    alert("Çıkış hatası: " + error.message);
+    return;
   }
+
+  setSession(null);
+  setUserRole("chief");
+  window.location.reload();
+}
 
   const canEdit = userRole === "chief";
 
