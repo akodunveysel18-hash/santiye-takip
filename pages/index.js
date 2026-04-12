@@ -9,7 +9,7 @@ const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function Home() {
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState("chief");
+  const [userRole, setUserRole] = useState("office");
   const [selectedPier, setSelectedPier] = useState("P1");
 
   const [email, setEmail] = useState("");
@@ -67,13 +67,20 @@ export default function Home() {
   };
 
   async function loadRole(userEmail) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("role, email")
       .eq("email", userEmail)
       .maybeSingle();
 
-    setUserRole(data?.role || "chief");
+    if (error) {
+      console.error("ROLE LOAD ERROR:", error);
+      setUserRole("office");
+      return;
+    }
+
+    const role = data?.role === "chief" ? "chief" : "office";
+    setUserRole(role);
   }
 
   async function loadData() {
@@ -106,26 +113,26 @@ export default function Home() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       const currentSession = data.session;
       setSession(currentSession || null);
 
       if (currentSession?.user?.email) {
-        loadRole(currentSession.user.email);
-        loadData();
+        await loadRole(currentSession.user.email);
+        await loadData();
       }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession || null);
 
       if (newSession?.user?.email) {
-        loadRole(newSession.user.email);
-        loadData();
+        await loadRole(newSession.user.email);
+        await loadData();
       } else {
-        setUserRole("chief");
+        setUserRole("office");
       }
     });
 
@@ -158,10 +165,17 @@ export default function Home() {
   async function signOut() {
     await supabase.auth.signOut();
     setSession(null);
-    setUserRole("chief");
+    setUserRole("office");
   }
 
+  const canEdit = userRole === "chief";
+
   async function addProduction() {
+    if (!canEdit) {
+      alert("Bu işlem için yetkin yok");
+      return;
+    }
+
     if (!productionName.trim()) {
       alert("İmalat adı boş olamaz");
       return;
@@ -191,6 +205,11 @@ export default function Home() {
   }
 
   async function addSteel() {
+    if (!canEdit) {
+      alert("Bu işlem için yetkin yok");
+      return;
+    }
+
     if (!steelName.trim()) {
       alert("Malzeme adı boş olamaz");
       return;
@@ -222,6 +241,11 @@ export default function Home() {
   }
 
   async function addProgress() {
+    if (!canEdit) {
+      alert("Bu işlem için yetkin yok");
+      return;
+    }
+
     if (!progressItem.trim()) {
       alert("İş kalemi boş olamaz");
       return;
@@ -297,6 +321,11 @@ export default function Home() {
   }
 
   async function addLog() {
+    if (!canEdit) {
+      alert("Bu işlem için yetkin yok");
+      return;
+    }
+
     if (isSavingLog) return;
 
     if (!reportDate) {
@@ -364,6 +393,8 @@ export default function Home() {
   }
 
   function startEditLog(item) {
+    if (!canEdit) return;
+
     setEditingLogId(item.id);
     setReportDate(item.report_date || todayStr);
     setWeather(item.weather || "");
@@ -376,6 +407,11 @@ export default function Home() {
   }
 
   async function deleteLog(id) {
+    if (!canEdit) {
+      alert("Bu işlem için yetkin yok");
+      return;
+    }
+
     const ok = window.confirm("Bu raporu silmek istediğine emin misin?");
     if (!ok) return;
 
@@ -644,18 +680,19 @@ export default function Home() {
   function exportDailyReportPDF() {
     const doc = new jsPDF();
 
-    doc.setFontSize(16);
-    doc.text(`Günlük Şantiye Raporu - ${selectedPier}`, 14, 15);
-
+    doc.setFontSize(18);
+    doc.text(`TAŞKÖPRÜ VİYADÜK ŞANTİYESİ`, 14, 15);
+    doc.setFontSize(13);
+    doc.text(`Günlük Şantiye Raporu - ${selectedPier}`, 14, 23);
     doc.setFontSize(10);
     doc.text(
       `Oluşturma Tarihi: ${new Date().toLocaleDateString("tr-TR")}`,
       14,
-      22
+      30
     );
 
     autoTable(doc, {
-      startY: 28,
+      startY: 36,
       head: [["Tarih", "Hava", "Ekip", "Yapılan İş", "Engel / Aksama", "Foto"]],
       body: filteredLogs.map((item) => [
         item.report_date || "",
@@ -671,7 +708,10 @@ export default function Home() {
         overflow: "linebreak",
       },
       headStyles: {
-        fillColor: [31, 41, 55],
+        fillColor: [17, 24, 39],
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
       },
       columnStyles: {
         0: { cellWidth: 20 },
@@ -1026,8 +1066,6 @@ export default function Home() {
     );
   }
 
-  const mode = userRole === "office" ? "office" : "chief";
-
   return (
     <div style={styles.page}>
       {selectedImage ? (
@@ -1121,14 +1159,14 @@ export default function Home() {
         </div>
       </div>
 
-      {editingLogId && (
+      {editingLogId && canEdit ? (
         <div style={styles.editCard}>
           <strong>Şu anda düzenleme modundasın.</strong> Kaydedersen mevcut rapor güncellenir.
           <button style={styles.grayButton} onClick={resetLogForm}>
             Düzenlemeyi İptal Et
           </button>
         </div>
-      )}
+      ) : null}
 
       {criticalStocks.length > 0 && (
         <div style={styles.warningCard}>
@@ -1322,13 +1360,13 @@ export default function Home() {
                     <th style={styles.th}>Yapılan İş</th>
                     <th style={styles.th}>Engel / Aksama</th>
                     <th style={styles.th}>Foto</th>
-                    {mode === "chief" ? <th style={styles.th}>İşlem</th> : null}
+                    {canEdit ? <th style={styles.th}>İşlem</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredLogs.length === 0 ? (
                     <tr>
-                      <td style={styles.td} colSpan={mode === "chief" ? 7 : 6}>
+                      <td style={styles.td} colSpan={canEdit ? 7 : 6}>
                         Kayıt yok
                       </td>
                     </tr>
@@ -1355,7 +1393,7 @@ export default function Home() {
                             "Yok"
                           )}
                         </td>
-                        {mode === "chief" ? (
+                        {canEdit ? (
                           <td style={styles.td}>
                             <button
                               style={styles.secondaryButton}
@@ -1411,7 +1449,7 @@ export default function Home() {
                     <div style={{ marginTop: 8, color: "#999" }}>Fotoğraf yok</div>
                   )}
 
-                  {mode === "chief" && (
+                  {canEdit && (
                     <div style={styles.actionRow}>
                       <button
                         style={styles.secondaryButton}
@@ -1472,7 +1510,7 @@ export default function Home() {
         </div>
       </div>
 
-      {mode === "chief" ? (
+      {canEdit ? (
         <>
           <div style={styles.card}>
             <h2 style={styles.subtitle}>İmalat Girişi - {selectedPier}</h2>
@@ -1646,53 +1684,7 @@ export default function Home() {
             </div>
           </div>
         </>
-      ) : (
-        <>
-          <div style={styles.card}>
-            <h2 style={styles.subtitle}>İmalatlar - {selectedPier}</h2>
-            {filteredProductions.length === 0 ? (
-              <p>Kayıt yok</p>
-            ) : (
-              filteredProductions.map((item) => (
-                <div key={item.id} style={styles.listItem}>
-                  {item.name} - {item.quantity}
-                </div>
-              ))
-            )}
-          </div>
-
-          <div style={styles.card}>
-            <h2 style={styles.subtitle}>Demir Stok Hareketleri - {selectedPier}</h2>
-            {filteredSteel.length === 0 ? (
-              <p>Kayıt yok</p>
-            ) : (
-              filteredSteel.map((item) => (
-                <div key={item.id} style={styles.listItem}>
-                  {item.name} - {item.quantity} ({item.type})
-                </div>
-              ))
-            )}
-          </div>
-
-          <div style={styles.card}>
-            <h2 style={styles.subtitle}>Hakediş - {selectedPier}</h2>
-            {filteredProgress.length === 0 ? (
-              <p>Kayıt yok</p>
-            ) : (
-              filteredProgress.map((item) => {
-                const total = Number(item.total_quantity || 0);
-                const done = Number(item.completed_quantity || 0);
-                const percent = total ? ((done / total) * 100).toFixed(1) : "0";
-                return (
-                  <div key={item.id} style={styles.listItem}>
-                    {item.item} - %{percent}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </>
-      )}
+      ) : null}
     </div>
   );
 }
