@@ -1148,10 +1148,10 @@ export default function Home() {
           <button
               type="button"
                 style={styles.button}
-onClick={(e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  signOut();
+           onClick={(e) => {
+             e.preventDefault();
+             e.stopPropagation();
+             signOut();
   }}
 >
   Çıkış Yap
