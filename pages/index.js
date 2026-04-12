@@ -50,6 +50,9 @@ export default function Home() {
   const [filterText, setFilterText] = useState("");
   const [onlyWithImage, setOnlyWithImage] = useState(false);
 
+  const [lastRefresh, setLastRefresh] = useState("");
+  const [selectedImage, setSelectedImage] = useState("");
+
   const stockThresholds = {
     "Ø8": 5,
     "Ø10": 5,
@@ -99,6 +102,7 @@ export default function Home() {
     setSteel(p2 || []);
     setLogs(p3 || []);
     setProgress(p4 || []);
+    setLastRefresh(new Date().toLocaleTimeString("tr-TR"));
   }
 
   useEffect(() => {
@@ -128,6 +132,16 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!session) return;
+
+    const interval = setInterval(() => {
+      loadData();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [session]);
+
   async function signIn() {
     setLoginError("");
 
@@ -148,11 +162,19 @@ export default function Home() {
   }
 
   async function addProduction() {
-    if (!productionName || !productionQty) return;
+    if (!productionName.trim()) {
+      alert("İmalat adı boş olamaz");
+      return;
+    }
+
+    if (!productionQty || Number(productionQty) <= 0) {
+      alert("Geçerli miktar gir");
+      return;
+    }
 
     const { error } = await supabase.from("productions").insert([
       {
-        name: productionName,
+        name: productionName.trim(),
         quantity: Number(productionQty),
         pier: selectedPier,
       },
@@ -169,11 +191,19 @@ export default function Home() {
   }
 
   async function addSteel() {
-    if (!steelName || !steelQty) return;
+    if (!steelName.trim()) {
+      alert("Malzeme adı boş olamaz");
+      return;
+    }
+
+    if (!steelQty || Number(steelQty) <= 0) {
+      alert("Geçerli miktar gir");
+      return;
+    }
 
     const { error } = await supabase.from("steel_stock").insert([
       {
-        name: steelName,
+        name: steelName.trim(),
         quantity: Number(steelQty),
         type: steelType,
         pier: selectedPier,
@@ -192,11 +222,24 @@ export default function Home() {
   }
 
   async function addProgress() {
-    if (!progressItem || !progressTotal || !progressDone) return;
+    if (!progressItem.trim()) {
+      alert("İş kalemi boş olamaz");
+      return;
+    }
+
+    if (!progressTotal || Number(progressTotal) <= 0) {
+      alert("Toplam miktar geçerli olmalı");
+      return;
+    }
+
+    if (progressDone === "" || Number(progressDone) < 0) {
+      alert("Tamamlanan miktar geçerli olmalı");
+      return;
+    }
 
     const { error } = await supabase.from("progress").insert([
       {
-        item: progressItem,
+        item: progressItem.trim(),
         total_quantity: Number(progressTotal),
         completed_quantity: Number(progressDone),
         pier: selectedPier,
@@ -282,10 +325,10 @@ export default function Home() {
       const payload = {
         pier: selectedPier,
         report_date: reportDate,
-        weather,
-        team,
+        weather: weather.trim(),
+        team: team.trim(),
         description: logText.trim(),
-        issue,
+        issue: issue.trim(),
         image_url: imageUrl,
       };
 
@@ -310,7 +353,6 @@ export default function Home() {
       }
 
       alert(editingLogId ? "Rapor güncellendi" : "Rapor kaydedildi");
-
       resetLogForm();
       await loadData();
     } catch (err) {
@@ -455,6 +497,19 @@ export default function Home() {
       return false;
     });
   }, [filteredLogs, todayStr]);
+
+  const thisWeekLogsCount = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    const day = now.getDay() || 7;
+    start.setDate(now.getDate() - day + 1);
+    start.setHours(0, 0, 0, 0);
+
+    return filteredLogs.filter((item) => {
+      if (!item.report_date) return false;
+      return new Date(item.report_date) >= start;
+    }).length;
+  }, [filteredLogs]);
 
   const todayWorkSummary = useMemo(() => {
     return todayLogs
@@ -634,7 +689,7 @@ export default function Home() {
   const styles = {
     page: {
       padding: 20,
-      maxWidth: 1320,
+      maxWidth: 1360,
       margin: "0 auto",
       fontFamily: "Arial, sans-serif",
       background: "#f3f4f6",
@@ -821,6 +876,7 @@ export default function Home() {
       marginTop: 10,
       border: "1px solid #ddd",
       objectFit: "cover",
+      cursor: "pointer",
     },
     galleryGrid: {
       display: "grid",
@@ -839,6 +895,7 @@ export default function Home() {
       height: 150,
       objectFit: "cover",
       display: "block",
+      cursor: "pointer",
     },
     galleryMeta: {
       padding: 10,
@@ -860,6 +917,77 @@ export default function Home() {
       display: "flex",
       gap: 8,
       flexWrap: "wrap",
+    },
+    tableWrap: {
+      overflowX: "auto",
+      border: "1px solid #e5e7eb",
+      borderRadius: 14,
+    },
+    table: {
+      width: "100%",
+      borderCollapse: "collapse",
+      minWidth: 900,
+      background: "white",
+    },
+    th: {
+      textAlign: "left",
+      padding: "12px 10px",
+      background: "#f8fafc",
+      borderBottom: "1px solid #e5e7eb",
+      fontSize: 13,
+      fontWeight: 700,
+      color: "#374151",
+      whiteSpace: "nowrap",
+    },
+    td: {
+      padding: "12px 10px",
+      borderBottom: "1px solid #f1f5f9",
+      fontSize: 14,
+      verticalAlign: "top",
+    },
+    smallImage: {
+      width: 70,
+      height: 50,
+      objectFit: "cover",
+      borderRadius: 8,
+      border: "1px solid #ddd",
+      cursor: "pointer",
+    },
+    refreshText: {
+      fontSize: 13,
+      color: "#6b7280",
+      marginTop: 6,
+    },
+    modalBackdrop: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.75)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9999,
+      padding: 20,
+    },
+    modalImage: {
+      maxWidth: "95vw",
+      maxHeight: "90vh",
+      borderRadius: 12,
+      boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+      background: "white",
+    },
+    closeButton: {
+      position: "absolute",
+      top: 20,
+      right: 20,
+      border: "none",
+      background: "#111827",
+      color: "white",
+      borderRadius: 999,
+      width: 40,
+      height: 40,
+      cursor: "pointer",
+      fontSize: 18,
+      fontWeight: 700,
     },
   };
 
@@ -902,11 +1030,28 @@ export default function Home() {
 
   return (
     <div style={styles.page}>
+      {selectedImage ? (
+        <div style={styles.modalBackdrop} onClick={() => setSelectedImage("")}>
+          <button style={styles.closeButton} onClick={() => setSelectedImage("")}>
+            ×
+          </button>
+          <img
+            src={selectedImage}
+            alt="Büyük görsel"
+            style={styles.modalImage}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
+
       <div style={styles.titleWrap}>
         <div>
           <h1 style={styles.title}>🏗️ Şantiye Takip Sistemi</h1>
           <div style={styles.subTitle}>
             Ayak bazlı üretim, stok, günlük rapor ve saha görselleri
+          </div>
+          <div style={styles.refreshText}>
+            Son yenileme: <strong>{lastRefresh || "-"}</strong>
           </div>
         </div>
       </div>
@@ -927,6 +1072,10 @@ export default function Home() {
           <option value="P3">P3</option>
           <option value="P4">P4</option>
         </select>
+
+        <button style={styles.button} onClick={loadData}>
+          Verileri Yenile
+        </button>
 
         <button style={styles.button} onClick={exportExcel}>
           Excel İndir
@@ -952,6 +1101,10 @@ export default function Home() {
 
         <div style={styles.listItem}>
           Bugünkü Rapor Sayısı: {todayLogs.length}
+        </div>
+
+        <div style={styles.listItem}>
+          Bu Hafta Rapor Sayısı: {thisWeekLogsCount}
         </div>
 
         <div style={styles.listItem}>
@@ -1017,8 +1170,8 @@ export default function Home() {
         </div>
 
         <div style={styles.statBox}>
-          <strong>Kritik Malzeme Sayısı</strong>
-          <div style={{ fontSize: 26, marginTop: 8 }}>{criticalStocks.length}</div>
+          <strong>Fotoğraflı Rapor</strong>
+          <div style={{ fontSize: 26, marginTop: 8 }}>{galleryImages.length}</div>
         </div>
       </div>
 
@@ -1138,6 +1291,7 @@ export default function Home() {
                       src={item.image_url}
                       alt="Saha görseli"
                       style={styles.galleryImage}
+                      onClick={() => setSelectedImage(item.image_url)}
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
                       }}
@@ -1154,6 +1308,75 @@ export default function Home() {
                 ))}
               </div>
             )}
+          </div>
+
+          <div style={styles.card}>
+            <h2 style={styles.subtitle}>📋 Günlük Rapor Tablosu - {selectedPier}</h2>
+            <div style={styles.tableWrap}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Tarih</th>
+                    <th style={styles.th}>Hava</th>
+                    <th style={styles.th}>Ekip</th>
+                    <th style={styles.th}>Yapılan İş</th>
+                    <th style={styles.th}>Engel / Aksama</th>
+                    <th style={styles.th}>Foto</th>
+                    {mode === "chief" ? <th style={styles.th}>İşlem</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLogs.length === 0 ? (
+                    <tr>
+                      <td style={styles.td} colSpan={mode === "chief" ? 7 : 6}>
+                        Kayıt yok
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLogs.map((item) => (
+                      <tr key={item.id}>
+                        <td style={styles.td}>{item.report_date || "-"}</td>
+                        <td style={styles.td}>{item.weather || "-"}</td>
+                        <td style={styles.td}>{item.team || "-"}</td>
+                        <td style={styles.td}>{item.description || "-"}</td>
+                        <td style={styles.td}>{item.issue || "-"}</td>
+                        <td style={styles.td}>
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt="Rapor foto"
+                              style={styles.smallImage}
+                              onClick={() => setSelectedImage(item.image_url)}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            "Yok"
+                          )}
+                        </td>
+                        {mode === "chief" ? (
+                          <td style={styles.td}>
+                            <button
+                              style={styles.secondaryButton}
+                              onClick={() => startEditLog(item)}
+                            >
+                              Düzenle
+                            </button>
+                            <button
+                              style={styles.dangerButton}
+                              onClick={() => deleteLog(item.id)}
+                            >
+                              Sil
+                            </button>
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -1179,6 +1402,7 @@ export default function Home() {
                       src={item.image_url}
                       alt="Rapor görseli"
                       style={styles.image}
+                      onClick={() => setSelectedImage(item.image_url)}
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
                       }}
@@ -1386,6 +1610,7 @@ export default function Home() {
                   src={existingImageUrl}
                   alt="Mevcut rapor görseli"
                   style={styles.image}
+                  onClick={() => setSelectedImage(existingImageUrl)}
                 />
               </div>
             ) : null}
